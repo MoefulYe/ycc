@@ -93,6 +93,7 @@
           | <var-decl>
           | <const-decl>
           | <while-stmt>
+          | <expr> ';'
           | 'break' ';'
           | 'continue' ';'
           | 'return' [ <expr> ] ';'
