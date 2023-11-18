@@ -39,13 +39,14 @@ pub enum Literal {
 pub enum Type {
     Prim(PrimType),
     Ptr(Box<Type>),
+    // 多维数组, 对于参数中不声明第一维那么数组的首个元素用usize::MAX占位
+    Array(Box<Type>, Vec<usize>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstDecl {
     pub ty: Type,
     pub ident: String,
-    pub dimension: Vec<usize>,
     pub init: Literal,
 }
 
@@ -53,7 +54,6 @@ pub struct ConstDecl {
 pub struct StaticVarDecl {
     pub ty: Type,
     pub ident: String,
-    pub dimension: Vec<usize>,
     pub init: Option<Literal>,
 }
 
@@ -61,7 +61,6 @@ pub struct StaticVarDecl {
 pub struct VarDecl {
     pub ty: Type,
     pub ident: String,
-    pub dimension: Vec<usize>,
     pub init: Option<Expr>,
 }
 
