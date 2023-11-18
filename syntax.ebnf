@@ -1,0 +1,101 @@
+<rule> ::= { <compile-unit> }
+
+(*常量声明 全局变量声明 外部函数声明 函数声明 函数定义*)
+<compile-unit> ::= <const-decl>
+                  | <static-var-decl>
+                  | <extern-func-decl> 
+                  | <func-decl> 
+                  | <func-def>
+
+<prim-type> ::= 'void' | 'bool' | 'char' | 'int' | 'float'
+<type> ::= <prim-type> | <type> '*' 
+
+<extern-func-decl> ::= 'extern' <type> <ident> '(' <func-params> ')' ';'
+<func-decl> ::= <type> <ident> '(' <func-params> ')' ';'
+<func-def> ::= <type> <ident> '(' <func-params> ')' <block>
+<func-param> ::= <type> <ident> [ '[]' ] { '[' int-literal ']'} 
+<func-params> ::= { <func-param> ',' } [ <func-param> ]
+<func-call-args> ::= { <expr> ',' } [ <expr> ]
+
+(*不遵从c语言的const语义, 编译时常量而不是运行时常量, 会被内联到引用处, 在运行时不存在*)
+<const-decl> ::= 'const' <type> <ident> { '[' int-literal ']'} '=' <literal> ';'
+
+<var-decl> ::= 'static' <static-var-decl>
+              | <local-var-decl>
+
+<static-var-decl> ::= <type> <ident> { '[' int-literal ']'} [ '=' <literal> ] ';'
+<local-var-decl> ::= <type> <ident> { '[' int-literal ']'} [ '=' <expr> ] ';'
+
+<literal> ::= 'null'
+            | <bool-literal>
+            | <char-literal>
+            | <int-literal>
+            | <float-literal>
+            | <string-literal>
+            | <list-literal>
+
+<list-literal> ::= '{' { <literal> ',' } [ <literal> ] '}'
+
+<prim-expr> ::= <ident>
+              | <literal>
+              | '(' <expr> ')'
+
+<logical-or> ::= <logical-and> 
+                | <logical-or> '||' <logical-and>
+<logical-and> ::= <bit-or> 
+                | <logical-and> '&&' <bit-or>
+<bit-or> ::= <bit-xor> 
+           | <bit-or> '|' <bit-xor>
+<bit-xor> ::= <bit-and> 
+            | <bit-xor> '^' <bit-and>
+<bit-and> ::= <equality>
+            | <bit-and> '&' <equality>
+<equality> ::= <relational> 
+             | <equality> '==' <relational>
+             | <equality> '!=' <relational>
+<relational> ::= <shift> 
+              | <expr> '<' <expr>
+              | <expr> '>' <expr>
+              | <expr> '<=' <expr>
+              | <expr> '>=' <expr>
+<shift> ::= <additive>
+            | <shift> '<<' <additive>
+            | <shift> '>>' <additive>
+<additive> ::= <multiplicative>
+             | <additive> '+' <multiplicative>
+             | <additive> '-' <multiplicative>
+<multiplicative> ::= <cast>
+                   | <multiplicative> '*' <cast>
+                   | <multiplicative> '/' <cast>
+                   | <multiplicative> '%' <cast>
+<cast> ::= <unary>
+         | '(' <type> ')' <cast>
+<unary> ::= <postfix>
+          | <unary-op> <cast>
+<unary-op> ::= '+' | '-' | '!' | '~' | '*' | '&'
+<postfix> ::= <prim-expr>
+            | <postfix> '[' <expr> ']'
+            | <postfix> '(' <func-call-args> ')'
+<lvalve> ::= <ident>
+           | <lvalve> '[' <expr> ']'
+           | '*' <expr>
+
+
+<assign-stmt> ::= <lvalve> '=' <expr> ';'
+
+<if-stmt> ::= 'if' '(' <expr> ')' <block>
+            | 'if' '(' <expr> ')' <block> 'else' <block>
+            | 'if' '(' <expr> ')' <block> 'else' <if-stmt>
+<while-stmt> ::= 'while' '(' <expr> ')' <block>
+
+<stmt> ::= <assign-stmt>
+          | <if-stmt>
+          | <var-decl>
+          | <const-decl>
+          | <while-stmt>
+          | 'break' ';'
+          | 'continue' ';'
+          | 'return' [ <expr> ] ';'
+          | <block> 
+
+<block> ::= '{' { <stmt> } '}'
