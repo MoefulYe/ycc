@@ -1,0 +1,99 @@
+use crate::ast::*;
+use crate::error::UserError;
+use lalrpop_util::ParseError;
+
+grammar;
+
+extern {
+  type Error = UserError;
+}
+
+match {
+    r"\s*" => {},
+    r"//[^\n\r]*[\n\r]*" => {},
+    r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => {},
+    _
+}
+
+WithSource<T>: Sourced<T> = {
+  @L T => (<>)
+}
+
+Comma<T>: Vec<T> = {
+  <mut v: (<T> ",")*> <e: T?> => match e {
+    None => v,
+    Some(e) => {
+      v.push(e);
+      v
+    }
+  }
+}
+
+
+_NullLiteral: _Literal = {
+    "null" => _Literal::Null
+}
+
+_BoolLiteral: _Literal = {
+  "true" =>  _Literal::Bool(true),
+  "false" => _Literal::Bool(false)
+}
+
+_CharLiteral: _Literal = {
+  <r##"'[^\\']'"##> => _Literal::Char({
+    let char = (<>).chars().nth(1).unwrap(); 
+    assert!(char.is_ascii());
+    char as u8
+  }),
+  <r##"'\\[tnr\\']'"##> => _Literal::Char({
+    let to_escape = (<>).chars().nth(2).unwrap(); 
+    match to_escape {
+      't' => b'\t',
+      'n' => b'\n',
+      'r' => b'\r',
+      '\\' => b'\\',
+      '\'' => b'\'',
+      _ => unreachable!()
+    }
+  })
+}
+
+_IntLiteral: _Literal = {
+  <r##"0x[0-9a-fA-F]+"##> =>? {
+    let to_parse = &(<>)[2..];
+    i32::from_str_radix(to_parse, 16)
+      .map(_Literal::Int)
+      .map_err(|err| ParseError::User {
+        error: UserError::ParseIntegerError(err, <>.to_owned())
+      })
+  },
+  <r##"0b[01]+"##> =>? {
+    let to_parse = &(<>)[2..];
+    i32::from_str_radix(to_parse, 2)
+      .map(_Literal::Int)
+      .map_err(|err| ParseError::User {
+        error: UserError::ParseIntegerError(err, <>.to_owned())
+      })
+  },
+  <r##"0o[0-7]+"##> =>? {
+    let to_parse = &(<>)[2..];
+    i32::from_str_radix(to_parse, 8)
+      .map(_Literal::Int)
+      .map_err(|err| ParseError::User {
+        error: UserError::ParseIntegerError(err, <>.to_owned())
+      })
+  },
+  <r##"[0-9]+"##> =>? {
+    let to_parse = &<>;
+    i32::from_str_radix(to_parse, 10)
+      .map(_Literal::Int)
+      .map_err(|err| ParseError::User {
+        error: UserError::ParseIntegerError(err, <>.to_owned())
+      })
+  }
+}
+
+pub NullLiteral = WithSource<_NullLiteral>;
+pub BoolLiteral = WithSource<_BoolLiteral>;
+pub CharLiteral = WithSource<_CharLiteral>;
+pub IntLiteral = WithSource<_IntLiteral>;
