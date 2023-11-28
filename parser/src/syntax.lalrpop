@@ -83,7 +83,7 @@ _IntLiteral: _Literal = {
         error: UserError::ParseIntegerError(err, <>.to_owned())
       })
   },
-  <r##"[0-9]+"##> =>? {
+  <r##"[+-]?[0-9]+"##> =>? {
     let to_parse = &<>;
     i32::from_str_radix(to_parse, 10)
       .map(_Literal::Int)

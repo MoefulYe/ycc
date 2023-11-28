@@ -52,5 +52,9 @@ mod test {
             .parse("0xfffffffffffffffffffffffffffffffffffffffffffffffff")
             .unwrap_err();
         assert!(err.to_string() == "fail to parse `0xfffffffffffffffffffffffffffffffffffffffffffffffff` to integer: number too large to fit in target type");
+        let (_, parsed) = syntax::IntLiteralParser::new().parse("+1").unwrap();
+        assert!(parsed == _Literal::Int(1));
+        let (_, parsed) = syntax::IntLiteralParser::new().parse("-1").unwrap();
+        assert!(parsed == _Literal::Int(-1));
     }
 }
