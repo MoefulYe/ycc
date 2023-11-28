@@ -1,4 +1,4 @@
-<rule> ::= { <compile-unit> }
+<module> ::= { <compile-unit> }
 
 (*常量声明 全局变量声明 外部函数声明 函数声明 函数定义*)
 <compile-unit> ::= <const-decl>

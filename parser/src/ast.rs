@@ -1,4 +1,4 @@
-pub type Prog = Vec<CompileUnit>;
+pub type Module = Vec<CompileUnit>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileUnit {
@@ -111,9 +111,20 @@ pub struct AssginStmt {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IfStmt {
-    If(Expr, Block),
-    IfElse(Expr, Block, Block),
-    IfElseIf(Expr, Block, Box<IfStmt>),
+    If {
+        cond: Expr,
+        then: Block,
+    },
+    IfElse {
+        cond: Expr,
+        then: Block,
+        else_: Block,
+    },
+    IfElseIf {
+        cond: Expr,
+        then: Block,
+        else_: Box<IfStmt>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
