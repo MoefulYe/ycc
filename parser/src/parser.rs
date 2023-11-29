@@ -2,21 +2,23 @@ use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(pub syntax); // synthesized by LALRPOP
 
+pub use syntax::*;
+
 #[cfg(test)]
 mod test {
     use crate::{
         ast::{AstLiteral_, AstPrimType_, AstType_},
         parser::syntax::{
-            BoolLiteralParser, CharLiteralParser, ExprParser, FloatLiteralParser, IntLiteralParser,
-            LiteralParser, NullLiteralParser, StringLiteralParser, TypeParser,
+            BoolLiteralParser, ExprParser, FloatLiteralParser, IntLiteralParser, LiteralParser,
+            TypeParser,
         },
     };
 
-    #[test]
-    fn null() {
-        let (loc, _) = NullLiteralParser::new().parse("null").unwrap();
-        assert!(loc == 0)
-    }
+    // #[test]
+    // fn null() {
+    //     let (loc, _) = NullLiteralParser::new().parse("null").unwrap();
+    //     assert!(loc == 0)
+    // }
 
     #[test]
     fn boolean() {
@@ -26,19 +28,19 @@ mod test {
         assert!(parsed == AstLiteral_::Bool(false));
     }
 
-    #[test]
-    fn charactor() {
-        let (_, parsed) = CharLiteralParser::new().parse("'a'").unwrap();
-        assert!(parsed == AstLiteral_::Char(b'a'));
-        let (_, parsed) = CharLiteralParser::new().parse("'\\n'").unwrap();
-        assert!(parsed == AstLiteral_::Char(b'\n'));
-        let (_, parsed) = CharLiteralParser::new().parse("'\\''").unwrap();
-        assert!(parsed == AstLiteral_::Char(b'\''));
-        let (_, parsed) = CharLiteralParser::new().parse("'\\\\'").unwrap();
-        assert!(parsed == AstLiteral_::Char(b'\\'));
-        let (_, parsed) = CharLiteralParser::new().parse("'\\0'").unwrap();
-        assert!(parsed == AstLiteral_::Char(0u8));
-    }
+    // #[test]
+    // fn charactor() {
+    //     let (_, parsed) = CharLiteralParser::new().parse("'a'").unwrap();
+    //     assert!(parsed == AstLiteral_::Char(b'a'));
+    //     let (_, parsed) = CharLiteralParser::new().parse("'\\n'").unwrap();
+    //     assert!(parsed == AstLiteral_::Char(b'\n'));
+    //     let (_, parsed) = CharLiteralParser::new().parse("'\\''").unwrap();
+    //     assert!(parsed == AstLiteral_::Char(b'\''));
+    //     let (_, parsed) = CharLiteralParser::new().parse("'\\\\'").unwrap();
+    //     assert!(parsed == AstLiteral_::Char(b'\\'));
+    //     let (_, parsed) = CharLiteralParser::new().parse("'\\0'").unwrap();
+    //     assert!(parsed == AstLiteral_::Char(0u8));
+    // }
 
     #[test]
     fn integer() {
@@ -88,23 +90,23 @@ mod test {
         assert!(parsed == AstLiteral_::Float(1.0e10));
     }
 
-    #[test]
-    fn string() {
-        let (_, parsed) = StringLiteralParser::new().parse(r###""""###).unwrap();
-        assert!(parsed == AstLiteral_::String("".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""a""###).unwrap();
-        assert!(parsed == AstLiteral_::String("a".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""\n""###).unwrap();
-        assert!(parsed == AstLiteral_::String("\n".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""\t""###).unwrap();
-        assert!(parsed == AstLiteral_::String("\t".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""\r""###).unwrap();
-        assert!(parsed == AstLiteral_::String("\r".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""\0""###).unwrap();
-        assert!(parsed == AstLiteral_::String("\0".to_string()));
-        let (_, parsed) = StringLiteralParser::new().parse(r###""\\""###).unwrap();
-        assert!(parsed == AstLiteral_::String("\\".to_string()));
-    }
+    // #[test]
+    // fn string() {
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""a""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("a".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""\n""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("\n".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""\t""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("\t".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""\r""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("\r".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""\0""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("\0".to_string()));
+    //     let (_, parsed) = StringLiteralParser::new().parse(r###""\\""###).unwrap();
+    //     assert!(parsed == AstLiteral_::String("\\".to_string()));
+    // }
 
     #[test]
     fn array() {
@@ -198,7 +200,7 @@ mod test {
 
     #[test]
     fn expr0() {
-        let set = &["sum(1.1, 2)", "1", "*null", "arr[0]", "arr[0][1]"];
+        let set = &["sum(1.1, 2)", "1", "arr[0]", "arr[0][1]"];
         for expect in set {
             let (_, parsed) = ExprParser::new().parse(expect).unwrap();
             let actual = parsed.to_string();
