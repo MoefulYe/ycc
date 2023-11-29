@@ -72,7 +72,7 @@
          | '(' <type> ')' <cast>
 <unary> ::= <postfix>
           | <unary-op> <cast>
-<unary-op> ::= '+' | '-' | '!' | '~' | '*' | '&'
+<unary-op> ::= '+' | '-' | '!' | '~' | '&'
 <postfix> ::= <prim-expr>
             | <postfix> '[' <expr> ']'
             | <postfix> '(' <func-call-args> ')'

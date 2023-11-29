@@ -44,6 +44,31 @@ pub enum AstLiteral_ {
     List(Vec<AstLiteral>),
 }
 
+impl ToString for AstLiteral_ {
+    fn to_string(&self) -> String {
+        match self {
+            AstLiteral_::Null => "null".to_owned(),
+            AstLiteral_::Bool(val) => match val {
+                true => "true".to_owned(),
+                false => "false".to_owned(),
+            },
+            AstLiteral_::Char(ch) => format!("'{}'", (*ch as char).escape_default()),
+            AstLiteral_::Int(num) => num.to_string(),
+            AstLiteral_::Float(num) => num.to_string(),
+            AstLiteral_::String(s) => format!("\"{}\"", s.escape_default()),
+            AstLiteral_::List(list) => {
+                format!(
+                    "{{{}}}",
+                    list.iter()
+                        .map(|item| item.1.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
+        }
+    }
+}
+
 pub type AstLiteral = Sourced<AstLiteral_>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -170,15 +195,42 @@ pub enum AstExpr_ {
     Binary(AstBinary),
 }
 
+impl ToString for AstExpr_ {
+    fn to_string(&self) -> String {
+        match self {
+            AstExpr_::Prim((_, prim)) => prim.to_string(),
+            AstExpr_::Unary(_) => todo!(),
+            AstExpr_::Binary(_) => todo!(),
+        }
+    }
+}
+
 pub type AstExpr = Sourced<AstExpr_>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstPrimExpr_ {
-    Ident(String),
+    LVal(AstLValue),
     Literal(AstLiteral),
     Paren(Box<AstExpr>),
-    Idx(Box<AstExpr>),
-    Call(AstFuncArgs),
+    Call(String, AstFuncArgs),
+}
+
+impl ToString for AstPrimExpr_ {
+    fn to_string(&self) -> String {
+        match self {
+            AstPrimExpr_::LVal((_, lval)) => lval.to_string(),
+            AstPrimExpr_::Literal((_, literal)) => literal.to_string(),
+            AstPrimExpr_::Paren(expr) => expr.1.to_string(),
+            AstPrimExpr_::Call(func, sourced_args) => {
+                let arg = sourced_args
+                    .1
+                    .iter()
+                    .map(|arg| arg.1.to_string())
+                    .collect::<Vec<String>>();
+                format!("{}({})", func, arg.join(", "))
+            }
+        }
+    }
 }
 
 pub type AstPrimExpr = Sourced<AstPrimExpr_>;
@@ -189,7 +241,6 @@ pub enum AstUnaryOp_ {
     Neg,
     Not,
     BitNot,
-    Deref,
     Ref,
     Cast(AstType),
 }
@@ -240,8 +291,23 @@ pub type AstBinary = Sourced<AstBinary_>;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstLValue_ {
     Ident(String),
-    ArrayAccess(Box<AstExpr>, Box<AstExpr>),
-    PointerAccess(Box<AstExpr>),
+    Idx(String, Vec<AstExpr>),
+    Deref(Box<AstExpr>),
+}
+
+impl ToString for AstLValue_ {
+    fn to_string(&self) -> String {
+        match self {
+            AstLValue_::Ident(ident) => ident.to_owned(),
+            AstLValue_::Idx(ident, idxs) => idxs.iter().fold(ident.to_owned(), |mut acc, idx| {
+                acc.push_str(&format!("[{}]", idx.1.to_string()));
+                acc
+            }),
+            AstLValue_::Deref(expr) => {
+                format!("*{}", expr.1.to_string())
+            }
+        }
+    }
 }
 
 pub type AstLValue = Sourced<AstLValue_>;
