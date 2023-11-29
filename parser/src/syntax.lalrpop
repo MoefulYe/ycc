@@ -30,22 +30,22 @@ Comma<T>: Vec<T> = {
 }
 
 
-_NullLiteral: _Literal = {
-    "null" => _Literal::Null
+_NullLiteral: AstLiteral_ = {
+    "null" => AstLiteral_::Null
 }
 
-_BoolLiteral: _Literal = {
-  "true" =>  _Literal::Bool(true),
-  "false" => _Literal::Bool(false)
+_BoolLiteral: AstLiteral_ = {
+  "true" =>  AstLiteral_::Bool(true),
+  "false" => AstLiteral_::Bool(false)
 }
 
-_CharLiteral: _Literal = {
-  <r##"'[^\\']'"##> => _Literal::Char({
+_CharLiteral: AstLiteral_ = {
+  <r##"'[^\\']'"##> => AstLiteral_::Char({
     let char = (<>).chars().nth(1).unwrap(); 
     assert!(char.is_ascii());
     char as u8
   }),
-  <r##"'\\[tnr\\']'"##> => _Literal::Char({
+  <r##"'\\[tnr\\'0]'"##> => AstLiteral_::Char({
     let to_escape = (<>).chars().nth(2).unwrap(); 
     match to_escape {
       't' => b'\t',
@@ -53,16 +53,17 @@ _CharLiteral: _Literal = {
       'r' => b'\r',
       '\\' => b'\\',
       '\'' => b'\'',
+      '0' => b'\0',
       _ => unreachable!()
     }
   })
 }
 
-_IntLiteral: _Literal = {
+_IntLiteral: AstLiteral_ = {
   <r##"0x[0-9a-fA-F]+"##> =>? {
     let to_parse = &(<>)[2..];
     i32::from_str_radix(to_parse, 16)
-      .map(_Literal::Int)
+      .map(AstLiteral_::Int)
       .map_err(|err| ParseError::User {
         error: UserError::ParseIntegerError(err, <>.to_owned())
       })
@@ -70,7 +71,7 @@ _IntLiteral: _Literal = {
   <r##"0b[01]+"##> =>? {
     let to_parse = &(<>)[2..];
     i32::from_str_radix(to_parse, 2)
-      .map(_Literal::Int)
+      .map(AstLiteral_::Int)
       .map_err(|err| ParseError::User {
         error: UserError::ParseIntegerError(err, <>.to_owned())
       })
@@ -78,7 +79,7 @@ _IntLiteral: _Literal = {
   <r##"0o[0-7]+"##> =>? {
     let to_parse = &(<>)[2..];
     i32::from_str_radix(to_parse, 8)
-      .map(_Literal::Int)
+      .map(AstLiteral_::Int)
       .map_err(|err| ParseError::User {
         error: UserError::ParseIntegerError(err, <>.to_owned())
       })
@@ -86,14 +87,64 @@ _IntLiteral: _Literal = {
   <r##"[+-]?[0-9]+"##> =>? {
     let to_parse = &<>;
     i32::from_str_radix(to_parse, 10)
-      .map(_Literal::Int)
+      .map(AstLiteral_::Int)
       .map_err(|err| ParseError::User {
         error: UserError::ParseIntegerError(err, <>.to_owned())
       })
   }
 }
 
+_FloatLiteral: AstLiteral_ = {
+  <r##"[\-\+]?[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?"##> =>? {
+    <>.parse::<f32>()
+      .map(AstLiteral_::Float)
+      .map_err(|err| ParseError::User {
+        error: UserError::ParseFloatError(err, <>.to_owned())
+      })
+  }
+}
+
+_StringLiteral: AstLiteral_ = {
+  <r##""([^"\\]|\\[tnr\\0"])*""##> => AstLiteral_::String({
+    let mut chars = (<>).chars();
+    let mut string = String::new();
+    chars.next();
+    while let Some(c) = chars.next() {
+      match c {
+        '\\' => {
+          let to_escape = chars.next().unwrap();
+          match to_escape {
+            't' => string.push('\t'),
+            'n' => string.push('\n'),
+            'r' => string.push('\r'),
+            '\\' => string.push('\\'),
+            '"' => string.push('"'),
+            '0' => string.push('\0'),
+            _ => unreachable!()
+          }
+        },
+        '"' => break,
+        _ => string.push(c)
+      }
+    }
+    string
+  })
+}
+
+_Literal: AstLiteral_ = {
+  <_NullLiteral> => <>,
+  <_BoolLiteral> => <>,
+  <_CharLiteral> => <>,
+  <_IntLiteral> => <>,
+  <_FloatLiteral> => <>,
+  <_StringLiteral> => <>,
+  "{" <Comma<Literal>> "}" => AstLiteral_::List(<>),
+}
+
 pub NullLiteral = WithSource<_NullLiteral>;
 pub BoolLiteral = WithSource<_BoolLiteral>;
 pub CharLiteral = WithSource<_CharLiteral>;
 pub IntLiteral = WithSource<_IntLiteral>;
+pub FloatLiteral = WithSource<_FloatLiteral>;
+pub StringLiteral = WithSource<_StringLiteral>;
+pub Literal = WithSource<_Literal>;

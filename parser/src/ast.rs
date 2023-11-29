@@ -2,22 +2,22 @@ pub type Loc = usize;
 
 pub type Sourced<T> = (Loc, T);
 
-pub type _Module = Vec<CompileUnit>;
-pub type Module = Sourced<_Module>;
+pub type AstModule_ = Vec<AstCompileUnit>;
+pub type AstModule = Sourced<AstModule_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _CompileUnit {
-    ConstDecl(ConstDecl),
-    GlobalVarDecl(StaticVarDecl),
-    ExternalFuncDecl(FuncProto),
-    FuncDecl(FuncProto),
-    FuncDef(FuncDef),
+pub enum AstCompileUnit_ {
+    ConstDecl(AstConstDecl),
+    GlobalVarDecl(AstStaticVarDecl),
+    ExternalFuncDecl(AstFuncProto),
+    FuncDecl(AstFuncProto),
+    FuncDef(AstFuncDef),
 }
 
-pub type CompileUnit = Sourced<_CompileUnit>;
+pub type AstCompileUnit = Sourced<AstCompileUnit_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _PrimType {
+pub enum AstPrimType_ {
     Void,
     Bool,
     Char,
@@ -25,7 +25,7 @@ pub enum _PrimType {
     Float,
 }
 
-pub type PrimType = Sourced<_PrimType>;
+pub type AstPrimType = Sourced<AstPrimType_>;
 
 pub type BoolLiteral = bool;
 pub type CharLiteral = u8;
@@ -34,178 +34,178 @@ pub type FloatLiteral = f32;
 pub type StringLiteral = String;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _Literal {
+pub enum AstLiteral_ {
     Null,
     Bool(BoolLiteral),
     Char(CharLiteral),
     Int(IntLiteral),
     Float(FloatLiteral),
     String(StringLiteral),
-    List(Vec<Literal>),
+    List(Vec<AstLiteral>),
 }
 
-pub type Literal = Sourced<_Literal>;
+pub type AstLiteral = Sourced<AstLiteral_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _Type {
-    Prim(PrimType),
-    Ptr(Box<Type>),
+pub enum AstType_ {
+    Prim(AstPrimType),
+    Ptr(Box<AstType>),
     // 多维数组, 对于参数中不声明第一维那么数组的首个元素用usize::MAX占位
-    Array(Box<Type>, Vec<usize>),
+    Array(Box<AstType>, Vec<usize>),
 }
 
-pub type Type = Sourced<_Type>;
+pub type AstType = Sourced<AstType_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _ConstDecl {
-    pub ty: Type,
+pub struct AstConstDecl_ {
+    pub ty: AstType,
     pub ident: String,
-    pub init: Literal,
+    pub init: AstLiteral,
 }
 
-pub type ConstDecl = Sourced<_ConstDecl>;
+pub type AstConstDecl = Sourced<AstConstDecl_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _StaticVarDecl {
-    pub ty: Type,
+pub struct AstStaticVarDecl_ {
+    pub ty: AstType,
     pub ident: String,
-    pub init: Option<Literal>,
+    pub init: Option<AstLiteral>,
 }
 
-pub type StaticVarDecl = Sourced<_StaticVarDecl>;
+pub type AstStaticVarDecl = Sourced<AstStaticVarDecl_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _VarDecl {
-    pub ty: Type,
+pub struct AstVarDecl_ {
+    pub ty: AstType,
     pub ident: String,
-    pub init: Option<Expr>,
+    pub init: Option<AstExpr>,
 }
 
-pub type VarDecl = Sourced<_VarDecl>;
+pub type AstVarDecl = Sourced<AstVarDecl_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _FuncParam {
-    pub ty: Type,
+pub struct AstFuncParam_ {
+    pub ty: AstType,
     pub ident: String,
     pub dimension: Vec<usize>,
 }
-pub type FuncParam = Sourced<_FuncParam>;
-pub type _FuncParams = Vec<FuncParam>;
-pub type FuncParams = Sourced<_FuncParams>;
-pub type _FuncArgs = Vec<Expr>;
-pub type FuncArgs = Sourced<_FuncArgs>;
+pub type AstFuncParam = Sourced<AstFuncParam_>;
+pub type AstFuncParams_ = Vec<AstFuncParam>;
+pub type AstFuncParams = Sourced<AstFuncParams_>;
+pub type AstFuncArgs_ = Vec<AstExpr>;
+pub type AstFuncArgs = Sourced<AstFuncArgs_>;
 #[derive(Debug, Clone, PartialEq)]
-pub struct _FuncProto {
-    pub ty: Type,
+pub struct AstFuncProto_ {
+    pub ty: AstType,
     pub ident: String,
-    pub params: FuncParams,
+    pub params: AstFuncParams,
 }
-pub type FuncProto = Sourced<_FuncProto>;
+pub type AstFuncProto = Sourced<AstFuncProto_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _FuncDef {
-    pub proto: FuncProto,
-    pub body: Block,
+pub struct AstFuncDef_ {
+    pub proto: AstFuncProto,
+    pub body: AstBlock,
 }
 
-pub type FuncDef = Sourced<_FuncDef>;
+pub type AstFuncDef = Sourced<AstFuncDef_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _Stmt {
-    ConstDecl(ConstDecl),
-    StaticVarDecl(StaticVarDecl),
-    VarDecl(VarDecl),
-    Assign(AssginStmt),
-    If(IfStmt),
-    While(WhileStmt),
+pub enum AstStmt_ {
+    ConstDecl(AstConstDecl),
+    StaticVarDecl(AstStaticVarDecl),
+    VarDecl(AstVarDecl),
+    Assign(AstAssginStmt),
+    If(AstIfStmt),
+    While(AstWhileStmt),
     Break,
     Continue,
-    Return(Option<Expr>),
-    Expr(Expr),
-    Block(Block),
+    Return(Option<AstExpr>),
+    Expr(AstExpr),
+    Block(AstBlock),
 }
 
-pub type Stmt = Sourced<_Stmt>;
+pub type AstStmt = Sourced<AstStmt_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _AssginStmt {
-    lhs: LValue,
-    rhs: Expr,
+pub struct AstAssginStmt_ {
+    lhs: AstLValue,
+    rhs: AstExpr,
 }
 
-pub type AssginStmt = Sourced<_AssginStmt>;
+pub type AstAssginStmt = Sourced<AstAssginStmt_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _IfStmt {
+pub enum AstIfStmt_ {
     If {
-        cond: Expr,
-        then: Block,
+        cond: AstExpr,
+        then: AstBlock,
     },
     IfElse {
-        cond: Expr,
-        then: Block,
-        else_: Block,
+        cond: AstExpr,
+        then: AstBlock,
+        else_: AstBlock,
     },
     IfElseIf {
-        cond: Expr,
-        then: Block,
-        else_: Box<IfStmt>,
+        cond: AstExpr,
+        then: AstBlock,
+        else_: Box<AstIfStmt>,
     },
 }
 
-pub type IfStmt = Sourced<_IfStmt>;
+pub type AstIfStmt = Sourced<AstIfStmt_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _WhileStmt {
-    pub cond: Expr,
-    pub body: Block,
+pub struct AstWhileStmt_ {
+    pub cond: AstExpr,
+    pub body: AstBlock,
 }
 
-pub type WhileStmt = Sourced<_WhileStmt>;
+pub type AstWhileStmt = Sourced<AstWhileStmt_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _Expr {
-    Prim(PrimExpr),
-    Unary(Unary),
-    Binary(Binary),
+pub enum AstExpr_ {
+    Prim(AstPrimExpr),
+    Unary(AstUnary),
+    Binary(AstBinary),
 }
 
-pub type Expr = Sourced<_Expr>;
+pub type AstExpr = Sourced<AstExpr_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _PrimExpr {
+pub enum AstPrimExpr_ {
     Ident(String),
-    Literal(Literal),
-    Paren(Box<Expr>),
-    Idx(Box<Expr>),
-    Call(FuncArgs),
+    Literal(AstLiteral),
+    Paren(Box<AstExpr>),
+    Idx(Box<AstExpr>),
+    Call(AstFuncArgs),
 }
 
-pub type PrimExpr = Sourced<_PrimExpr>;
+pub type AstPrimExpr = Sourced<AstPrimExpr_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _UnaryOp {
+pub enum AstUnaryOp_ {
     Pos,
     Neg,
     Not,
     BitNot,
     Deref,
     Ref,
-    Cast(Type),
+    Cast(AstType),
 }
 
-pub type UnaryOp = Sourced<_UnaryOp>;
+pub type AstUnaryOp = Sourced<AstUnaryOp_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _Unary {
-    pub op: UnaryOp,
-    pub expr: Box<Expr>,
+pub struct AstUnary_ {
+    pub op: AstUnaryOp,
+    pub expr: Box<AstExpr>,
 }
 
-pub type Unary = Sourced<_Unary>;
+pub type AstUnary = Sourced<AstUnary_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _BinaryOp {
+pub enum AstBinaryOp_ {
     LogicalOr,
     LogicalAnd,
     BitOr,
@@ -226,25 +226,25 @@ pub enum _BinaryOp {
     Mod,
 }
 
-pub type BinaryOp = Sourced<_BinaryOp>;
+pub type AstBinaryOp = Sourced<AstBinaryOp_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct _Binary {
-    pub op: BinaryOp,
-    pub lhs: Box<Expr>,
-    pub rhs: Box<Expr>,
+pub struct AstBinary_ {
+    pub op: AstBinaryOp,
+    pub lhs: Box<AstExpr>,
+    pub rhs: Box<AstExpr>,
 }
 
-pub type Binary = Sourced<_Binary>;
+pub type AstBinary = Sourced<AstBinary_>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum _LValue {
+pub enum AstLValue_ {
     Ident(String),
-    ArrayAccess(Box<LValue>, Box<Expr>),
-    PointerAccess(Box<LValue>),
+    ArrayAccess(Box<AstExpr>, Box<AstExpr>),
+    PointerAccess(Box<AstExpr>),
 }
 
-pub type LValue = Sourced<_LValue>;
+pub type AstLValue = Sourced<AstLValue_>;
 
-pub type _Block = Vec<Stmt>;
-pub type Block = Sourced<_Block>;
+pub type AstBlock_ = Vec<AstStmt>;
+pub type AstBlock = Sourced<AstBlock_>;
