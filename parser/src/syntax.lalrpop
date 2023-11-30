@@ -1,11 +1,11 @@
-use crate::ast::*;
+use ast::{self, Sourced};
 use crate::error::UserError;
 use lalrpop_util::ParseError;
 
 grammar;
 
 extern {
-  type Error = UserError;
+  type Error = UserError<'input>;
 }
 
 match {
@@ -29,240 +29,174 @@ Comma<T>: Vec<T> = {
   }
 }
 
+Ident = WithSource<r##"[a-zA-Z_][a-zA-Z_0-9]*"##>;
 
-//字面量
-//NullLiteral_: AstLiteral_ = {
-//    "null" => AstLiteral_::Null
-//}
-BoolLiteral_: AstLiteral_ = {
-  "true" =>  AstLiteral_::Bool(true),
-  "false" => AstLiteral_::Bool(false)
-}
-//CharLiteral_: AstLiteral_ = {
-//  <r##"'[^\\']'"##> => AstLiteral_::Char({
-//    let char = (<>).chars().nth(1).unwrap(); 
-//    assert!(char.is_ascii());
-//    char as u8
-//  }),
-//  <r##"'\\[tnr\\'0]'"##> => AstLiteral_::Char({
-//    let to_escape = (<>).chars().nth(2).unwrap(); 
-//    match to_escape {
-//      't' => b'\t',
-//      'n' => b'\n',
-//      'r' => b'\r',
-//      '\\' => b'\\',
-//      '\'' => b'\'',
-//      '0' => b'\0',
-//      _ => unreachable!()
-//    }
-//  })
-//}
-IntLiteral_: AstLiteral_ = {
-  <r##"0x[0-9a-fA-F]+"##> =>? {
-    let to_parse = &(<>)[2..];
-    i32::from_str_radix(to_parse, 16)
-      .map(AstLiteral_::Int)
+IntLiteral_: ast::Literal = {
+  <loc: @L> <to_parse: r##"0x[0-9a-fA-F]+"##> =>? {
+    i32::from_str_radix(&to_parse[2..], 16)
+      .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(err, <>.to_owned())
+        error: UserError::ParseIntegerError(loc, err, to_parse)
       })
   },
-  <r##"0b[01]+"##> =>? {
-    let to_parse = &(<>)[2..];
-    i32::from_str_radix(to_parse, 2)
-      .map(AstLiteral_::Int)
+  <loc: @L> <to_parse: r##"0b[01]+"##> =>? {
+    i32::from_str_radix(&to_parse[2..], 2)
+      .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(err, <>.to_owned())
+        error: UserError::ParseIntegerError(loc, err, to_parse)
       })
   },
-  <r##"0o[0-7]+"##> =>? {
-    let to_parse = &(<>)[2..];
-    i32::from_str_radix(to_parse, 8)
-      .map(AstLiteral_::Int)
+  <loc: @L> <to_parse: r##"0o[0-7]+"##> =>? {
+    i32::from_str_radix(&to_parse[2..], 8)
+      .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(err, <>.to_owned())
+        error: UserError::ParseIntegerError(loc, err, to_parse)
       })
   },
-  <r##"[+-]?[0-9]+"##> =>? {
-    let to_parse = &<>;
+  <loc: @L> <to_parse: r##"[\+\-]?[0-9]+"##> =>? {
     i32::from_str_radix(to_parse, 10)
-      .map(AstLiteral_::Int)
+      .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(err, <>.to_owned())
+        error: UserError::ParseIntegerError(loc, err, to_parse)
       })
   }
 }
-FloatLiteral_: AstLiteral_ = {
-  <r##"[\-\+]?[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?"##> =>? {
-    <>.parse::<f32>()
-      .map(AstLiteral_::Float)
+FloatLiteral_: ast::Literal = {
+  <loc: @L> <to_parse: r##"[\-\+]?[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?"##> =>? {
+    to_parse.parse::<f32>()
+      .map(ast::Literal::Float)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseFloatError(err, <>.to_owned())
+        error: UserError::ParseFloatError(loc, err, to_parse)
       })
   }
 }
-//StringLiteral_: AstLiteral_ = {
-//  <r##""([^"\\]|\\[tnr\\0"])*""##> => AstLiteral_::String({
-//    let mut chars = (<>).chars();
-//    let mut string = String::new();
-//    chars.next();
-//    while let Some(c) = chars.next() {
-//      match c {
-//        '\\' => {
-//          let to_escape = chars.next().unwrap();
-//          match to_escape {
-//            't' => string.push('\t'),
-//            'n' => string.push('\n'),
-//            'r' => string.push('\r'),
-//            '\\' => string.push('\\'),
-//            '"' => string.push('"'),
-//            '0' => string.push('\0'),
-//            _ => unreachable!()
-//          }
-//        },
-//        '"' => break,
-//        _ => string.push(c)
-//      }
-//    }
-//    string
-//  })
-//}
-Literal_: AstLiteral_ = {
-  //NullLiteral_,
+
+BoolLiteral_: ast::Literal = {
+  "true" => ast::Literal::Bool(true),
+  "false" => ast::Literal::Bool(false)
+}
+
+Literal_: ast::Literal = {
   BoolLiteral_,
-  //CharLiteral_,
   IntLiteral_ ,
   FloatLiteral_ ,
-  //StringLiteral_ ,
-  "{" <Comma<Literal>> "}" => AstLiteral_::List(<>),
+  "{" <Comma<Literal>> "}" => ast::Literal::List(<>),
 }
-//pub NullLiteral = WithSource<NullLiteral_>;
-pub BoolLiteral = WithSource<BoolLiteral_>;
-//pub CharLiteral = WithSource<CharLiteral_>;
-pub IntLiteral = WithSource<IntLiteral_>;
-pub FloatLiteral = WithSource<FloatLiteral_>;
-//pub StringLiteral = WithSource<StringLiteral_>;
 pub Literal = WithSource<Literal_>;
 
 
 //基本类型
-PrimType_: AstPrimType_ = {
-  "void" => AstPrimType_::Void,
-  "bool" => AstPrimType_::Bool,
-//  "char" => AstPrimType_::Char,
-  "int" => AstPrimType_::Int,
-  "float" => AstPrimType_::Float,
+PrimType_: ast::PrimType = {
+  "void" => ast::PrimType::Void,
+  "bool" => ast::PrimType::Bool,
+  "int" => ast::PrimType::Int,
+  "float" => ast::PrimType::Float,
 }
-PrimType = WithSource<PrimType_>;
-//类型
-Type_: AstType_ = {
-  <PrimType> => AstType_::Prim(<>),
-}
-pub Type = WithSource<Type_>;
+pub PrimType = WithSource<PrimType_>;
 
-Ident: String = r##"[a-zA-Z_][a-zA-Z_0-9]*"## => <>.to_owned();
 
-LValue_: AstLValue_ = {
-  Ident => AstLValue_::Ident(<>),
-  Ident ("["<Expr>"]")+ => AstLValue_::Idx(<>),
-}
-
-pub LValue = WithSource<LValue_>;
-
-PrimExpr_: AstPrimExpr_ = {
-  LValue => AstPrimExpr_::LVal(<>),
-  Literal => AstPrimExpr_::Literal(<>),
-  "(" <Expr> ")" => AstPrimExpr_::Paren(Box::new(<>)),
-  <Ident> "(" <WithSource<Comma<Expr>>> ")" =>  AstPrimExpr_::Call(<>),
-}
-pub PrimExpr = WithSource<PrimExpr_>;
-
-LogicalOrOp_: AstBinaryOp_ = "||" => AstBinaryOp_::LogicalOr;
-LogicalOrOp = WithSource<LogicalOrOp_>;
-LogicalAndOp_: AstBinaryOp_ = "&&" => AstBinaryOp_::LogicalAnd;
-LogicalAndOp = WithSource<LogicalAndOp_>;
-BitOrOp_: AstBinaryOp_ = "|" => AstBinaryOp_::BitOr;
-BitOrOp = WithSource<BitOrOp_>;
-BitXorOp_: AstBinaryOp_ = "^" => AstBinaryOp_::BitXor;
-BitXorOp = WithSource<BitXorOp_>;
-BitAndOp_: AstBinaryOp_ = "&" => AstBinaryOp_::BitAnd;
-BitAndOp = WithSource<BitAndOp_>;
-EqOp_: AstBinaryOp_ = "==" => AstBinaryOp_::Eq;
-EqOp = WithSource<EqOp_>;
-NeOp_: AstBinaryOp_ = "!=" => AstBinaryOp_::Ne;
-NeOp = WithSource<NeOp_>;
-LtOp_: AstBinaryOp_ = "<" => AstBinaryOp_::Lt;
-LtOp = WithSource<LtOp_>;
-GtOp_: AstBinaryOp_ = ">" => AstBinaryOp_::Gt;
-GtOp = WithSource<GtOp_>;
-LeOp_: AstBinaryOp_ = "<=" => AstBinaryOp_::Le;
-LeOp = WithSource<LeOp_>;
-GeOp_: AstBinaryOp_ = ">=" => AstBinaryOp_::Ge;
-GeOp = WithSource<GeOp_>;
-ShlOp_: AstBinaryOp_ = "<<" => AstBinaryOp_::Shl;
-ShlOp = WithSource<ShlOp_>;
-ShrOp_: AstBinaryOp_ = ">>" => AstBinaryOp_::Shr;
-ShrOp = WithSource<ShrOp_>;
-AddOp_: AstBinaryOp_ = "+" => AstBinaryOp_::Add;
-AddOp = WithSource<AddOp_>;
-SubOp_: AstBinaryOp_ = "-" => AstBinaryOp_::Sub;
-SubOp = WithSource<SubOp_>;
-MulOp_: AstBinaryOp_ = "*" => AstBinaryOp_::Mul;
-MulOp = WithSource<MulOp_>;
-DivOp_: AstBinaryOp_ = "/" => AstBinaryOp_::Div;
-DivOp = WithSource<DivOp_>;
-ModOp_: AstBinaryOp_ = "%" => AstBinaryOp_::Mod;
-ModOp = WithSource<ModOp_>;
-
-PosOp_: AstUnaryOp_ = "+" => AstUnaryOp_::Pos;
-PosOp = WithSource<PosOp_>;
-NegOp_: AstUnaryOp_ = "-" => AstUnaryOp_::Neg;
-NegOp = WithSource<NegOp_>;
-NotOp_: AstUnaryOp_ = "!" => AstUnaryOp_::Not;
-NotOp = WithSource<NotOp_>;
-BitNotOp_: AstUnaryOp_ = "~" => AstUnaryOp_::BitNot;
-BitNotOp = WithSource<BitNotOp_>;
-
-Tier<Op, NextTier>: AstExpr = {
-  <loc: @L> <lhs: Tier<Op, NextTier>> <op:Op> <rhs: NextTier> => (loc, AstExpr_::Binary(
-    (
-      loc, 
-      AstBinary_ {
-        lhs: Box::new(lhs),
-        op: op,
-        rhs: Box::new(rhs)
-      }
-    )
-  )) ,
-  NextTier,
-}
-
-pub Expr = LogicalOr;
-LogicalOr = Tier<LogicalOrOp, LogicalAnd>;
-LogicalAnd = Tier<LogicalAndOp, BitOr>;
-BitOr = Tier<BitOrOp, BitXor>;
-BitXor = Tier<BitXorOp, BitAnd>;
-BitAnd = Tier<BitAndOp, EqNe>;
-EqNeOp: AstBinaryOp = {
-  EqOp,
-  NeOp
-}
-EqNe = Tier<EqNeOp, Relational>;
-CmpOp : AstBinaryOp = {
-  LtOp,
-  GtOp,
-  LeOp,
-  GeOp
-}
-Relational: AstExpr = {
-  //Shift,
-  //<loc: @L> <lhs: Expr> <op: CmpOp> <rhs: Expr> => (loc, AstExpr_::Binary(
-  //  (
-  //    loc, 
-  //    AstBinary_ {
-  //      lhs: Box::new(lhs),
-  //      op: op,
-  //      rhs: Box::new(rhs)
-  //    }
-  //  )
-  //))
-}
+//LValue_: AstLValue_ = {
+//  Ident => AstLValue_::Ident(<>),
+//  Ident ("["<Expr>"]")+ => AstLValue_::Idx(<>),
+//}
+//
+//pub LValue = WithSource<LValue_>;
+//
+//PrimExpr_: AstPrimExpr_ = {
+//  LValue => AstPrimExpr_::LVal(<>),
+//  Literal => AstPrimExpr_::Literal(<>),
+//  "(" <Expr> ")" => AstPrimExpr_::Paren(Box::new(<>)),
+//  <Ident> "(" <WithSource<Comma<Expr>>> ")" =>  AstPrimExpr_::Call(<>),
+//}
+//pub PrimExpr = WithSource<PrimExpr_>;
+//
+//LogicalOrOp_: AstBinaryOp_ = "||" => AstBinaryOp_::LogicalOr;
+//LogicalOrOp = WithSource<LogicalOrOp_>;
+//LogicalAndOp_: AstBinaryOp_ = "&&" => AstBinaryOp_::LogicalAnd;
+//LogicalAndOp = WithSource<LogicalAndOp_>;
+//BitOrOp_: AstBinaryOp_ = "|" => AstBinaryOp_::BitOr;
+//BitOrOp = WithSource<BitOrOp_>;
+//BitXorOp_: AstBinaryOp_ = "^" => AstBinaryOp_::BitXor;
+//BitXorOp = WithSource<BitXorOp_>;
+//BitAndOp_: AstBinaryOp_ = "&" => AstBinaryOp_::BitAnd;
+//BitAndOp = WithSource<BitAndOp_>;
+//EqOp_: AstBinaryOp_ = "==" => AstBinaryOp_::Eq;
+//EqOp = WithSource<EqOp_>;
+//NeOp_: AstBinaryOp_ = "!=" => AstBinaryOp_::Ne;
+//NeOp = WithSource<NeOp_>;
+//LtOp_: AstBinaryOp_ = "<" => AstBinaryOp_::Lt;
+//LtOp = WithSource<LtOp_>;
+//GtOp_: AstBinaryOp_ = ">" => AstBinaryOp_::Gt;
+//GtOp = WithSource<GtOp_>;
+//LeOp_: AstBinaryOp_ = "<=" => AstBinaryOp_::Le;
+//LeOp = WithSource<LeOp_>;
+//GeOp_: AstBinaryOp_ = ">=" => AstBinaryOp_::Ge;
+//GeOp = WithSource<GeOp_>;
+//ShlOp_: AstBinaryOp_ = "<<" => AstBinaryOp_::Shl;
+//ShlOp = WithSource<ShlOp_>;
+//ShrOp_: AstBinaryOp_ = ">>" => AstBinaryOp_::Shr;
+//ShrOp = WithSource<ShrOp_>;
+//AddOp_: AstBinaryOp_ = "+" => AstBinaryOp_::Add;
+//AddOp = WithSource<AddOp_>;
+//SubOp_: AstBinaryOp_ = "-" => AstBinaryOp_::Sub;
+//SubOp = WithSource<SubOp_>;
+//MulOp_: AstBinaryOp_ = "*" => AstBinaryOp_::Mul;
+//MulOp = WithSource<MulOp_>;
+//DivOp_: AstBinaryOp_ = "/" => AstBinaryOp_::Div;
+//DivOp = WithSource<DivOp_>;
+//ModOp_: AstBinaryOp_ = "%" => AstBinaryOp_::Mod;
+//ModOp = WithSource<ModOp_>;
+//
+//PosOp_: AstUnaryOp_ = "+" => AstUnaryOp_::Pos;
+//PosOp = WithSource<PosOp_>;
+//NegOp_: AstUnaryOp_ = "-" => AstUnaryOp_::Neg;
+//NegOp = WithSource<NegOp_>;
+//NotOp_: AstUnaryOp_ = "!" => AstUnaryOp_::Not;
+//NotOp = WithSource<NotOp_>;
+//BitNotOp_: AstUnaryOp_ = "~" => AstUnaryOp_::BitNot;
+//BitNotOp = WithSource<BitNotOp_>;
+//
+//Tier<Op, NextTier>: AstExpr = {
+//  <loc: @L> <lhs: Tier<Op, NextTier>> <op:Op> <rhs: NextTier> => (loc, AstExpr_::Binary(
+//    (
+//      loc, 
+//      AstBinary_ {
+//        lhs: Box::new(lhs),
+//        op: op,
+//        rhs: Box::new(rhs)
+//      }
+//    )
+//  )) ,
+//  NextTier,
+//}
+//
+//pub Expr = LogicalOr;
+//LogicalOr = Tier<LogicalOrOp, LogicalAnd>;
+//LogicalAnd = Tier<LogicalAndOp, BitOr>;
+//BitOr = Tier<BitOrOp, BitXor>;
+//BitXor = Tier<BitXorOp, BitAnd>;
+//BitAnd = Tier<BitAndOp, EqNe>;
+//EqNeOp: AstBinaryOp = {
+//  EqOp,
+//  NeOp
+//}
+//EqNe = Tier<EqNeOp, Relational>;
+//CmpOp : AstBinaryOp = {
+//  LtOp,
+//  GtOp,
+//  LeOp,
+//  GeOp
+//}
+//Relational: AstExpr = {
+//  //Shift,
+//  //<loc: @L> <lhs: Expr> <op: CmpOp> <rhs: Expr> => (loc, AstExpr_::Binary(
+//  //  (
+//  //    loc, 
+//  //    AstBinary_ {
+//  //      lhs: Box::new(lhs),
+//  //      op: op,
+//  //      rhs: Box::new(rhs)
+//  //    }
+//  //  )
+//  //))
+//}
