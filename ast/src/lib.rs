@@ -50,7 +50,7 @@ impl ToString for Literal {
             },
             // AstLiteral_::Char(ch) => format!("'{}'", (*ch as char).escape_default()),
             Literal::Int(num) => num.to_string(),
-            Literal::Float(num) => format!("{num:.2}"),
+            Literal::Float(num) => format!("{num:.1}"),
             // AstLiteral_::String(s) => format!("\"{}\"", s.escape_default()),
             Literal::List(list) => {
                 format!(
@@ -219,12 +219,12 @@ impl UnaryOp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unary<'a> {
     pub op: Sourced<UnaryOp>,
-    pub expr: Box<Sourced<Expr<'a>>>,
+    pub rhs: Box<Sourced<Expr<'a>>>,
 }
 
 impl<'a> ToString for Unary<'a> {
     fn to_string(&self) -> String {
-        format!("({}{})", self.op.1.to_str(), self.expr.1.to_string())
+        format!("({}{})", self.op.1.to_str(), self.rhs.1.to_string())
     }
 }
 

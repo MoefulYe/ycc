@@ -131,13 +131,12 @@ mod test {
     //     }
     // }
     //
-    // #[test]
-    // fn expr0() {
-    //     let set = &["sum(1.1, 2)", "1", "arr[0]", "arr[0][1]"];
-    //     for expect in set {
-    //         let (_, parsed) = ExprParser::new().parse(expect).unwrap();
-    //         let actual = parsed.to_string();
-    //         assert_eq!(expect, &actual);
-    //     }
-    // }
+    #[test]
+    fn expr0() {
+        let set = &["sum(1.11, 2)", "1", "arr[0]", "arr[0][1]", "1 + 1 * 9 != 3"];
+        for expect in set {
+            let (_, parsed) = ExprParser::new().parse(expect).unwrap();
+            println!("{}", parsed.to_string())
+        }
+    }
 }
