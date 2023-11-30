@@ -9,18 +9,18 @@ extern {
 }
 
 match {
-    r"\s*" => {},
-    r"//[^\n\r]*[\n\r]*" => {},
-    r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => {},
-    _
+  r"\s*" => {},
+  r"//[^\n\r]*[\n\r]*" => {},
+  r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => {},
+  _
 }
 
 WithSource<T>: Sourced<T> = {
   @L T => (<>)
 }
 
-Comma<T>: Vec<T> = {
-  <mut v: (<T> ",")*> <e: T?> => match e {
+Delim<T,D>: Vec<T> = {
+  <mut v: (<T> D)*> <e: T?> => match e {
     None => v,
     Some(e) => {
       v.push(e);
@@ -29,7 +29,18 @@ Comma<T>: Vec<T> = {
   }
 }
 
+Around<L, T, R>: T = {
+  L <T> R => <>
+}
+
+Comma<T> = Delim<T, ",">;
+
 Ident = WithSource<r##"[a-zA-Z_][a-zA-Z_0-9]*"##>;
+
+
+dec: i32 = <l: @L> <to_parse: r##"[\+\-]?[0-9]+"##> =>? to_parse.parse::<i32>().map_err(|err| ParseError::User {
+  error: UserError::ParseIntegerError(l, err, to_parse)
+});
 
 IntLiteral_: ast::Literal = {
   <loc: @L> <to_parse: r##"0x[0-9a-fA-F]+"##> =>? {
@@ -53,16 +64,10 @@ IntLiteral_: ast::Literal = {
         error: UserError::ParseIntegerError(loc, err, to_parse)
       })
   },
-  <loc: @L> <to_parse: r##"[\+\-]?[0-9]+"##> =>? {
-    i32::from_str_radix(to_parse, 10)
-      .map(ast::Literal::Int)
-      .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(loc, err, to_parse)
-      })
-  }
+  dec => ast::Literal::Int(<>),
 }
 FloatLiteral_: ast::Literal = {
-  <loc: @L> <to_parse: r##"[\-\+]?[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?"##> =>? {
+  <loc: @L> <to_parse: r##"[\-\+]?[0-9]+\.[0-9]+([eE][\+\-]?[0-9]+)?"##> =>? {
     to_parse.parse::<f32>()
       .map(ast::Literal::Float)
       .map_err(|err| ParseError::User {
@@ -82,7 +87,7 @@ Literal_: ast::Literal = {
   FloatLiteral_ ,
   "{" <Comma<Literal>> "}" => ast::Literal::List(<>),
 }
-pub Literal = WithSource<Literal_>;
+Literal = WithSource<Literal_>;
 
 
 //基本类型
@@ -92,9 +97,8 @@ PrimType_: ast::PrimType = {
   "int" => ast::PrimType::Int,
   "float" => ast::PrimType::Float,
 }
-pub PrimType = WithSource<PrimType_>;
 
-
+PrimType = WithSource<PrimType_>;
 
 LogicalOrOp_: ast::BinaryOp = "||" => ast::BinaryOp::LogicalOr;
 LogicalOrOp = WithSource<LogicalOrOp_>;
@@ -159,7 +163,7 @@ Tier<Op, NextTier>: ast::Expr<'input> = {
   NextTier,
 }
 
-pub Expr = WithSource<LogicalOr>;
+Expr = WithSource<LogicalOr>;
 LogicalOr = Tier<LogicalOrOp, LogicalAnd>;
 LogicalAnd = Tier<LogicalAndOp, BitOr>;
 BitOr = Tier<BitOrOp, BitXor>;
@@ -186,7 +190,7 @@ LValue_: ast::LValue<'input> = {
   Ident => ast::LValue::Ident(<>),
   Ident ("["<Expr>"]")+ => ast::LValue::Idx(<>),
 }
-pub LValue = WithSource<LValue_>;
+LValue = WithSource<LValue_>;
  
 PrimExpr_: ast::PrimExpr<'input> = {
   LValue => ast::PrimExpr::LValue(<>),
@@ -195,3 +199,93 @@ PrimExpr_: ast::PrimExpr<'input> = {
   <Ident> "(" <WithSource<Comma<Expr>>> ")" =>  ast::PrimExpr::Call(<>),
 }
 PrimExpr = WithSource<PrimExpr_>;
+
+
+TypeIdent: (Sourced<ast::Type>, Sourced<&'input str>) = {
+  <begin: @L> <ty: PrimType> <id: Ident> => ((begin, ast::Type::Prim(ty)), id),
+  <loc0: @L> <ty: PrimType> <id: Ident> <loc1: @L> <idxs: (Around<"[", dec, "]">)+> => ((loc0, ast::Type::Array(ty, (loc1, idxs))), id),
+}
+
+GlobalVarDecl_: ast::GlobalVarDecl<'input> = {
+  <ty: TypeIdent> ";" => ast::GlobalVarDecl { ty: ty.0, ident: ty.1, init: None },
+  <ty: TypeIdent> "=" <init: Literal> ";" => ast::GlobalVarDecl { ty: ty.0, ident: ty.1, init: Some(init) },
+}
+
+GlobalVarDecl = WithSource<GlobalVarDecl_>;
+VarDecl_: ast::VarDecl<'input> = {
+  <ty: TypeIdent> ";" => ast::VarDecl { ty: ty.0, ident: ty.1, init: None },
+  <ty: TypeIdent> "=" <init: Expr> ";" => ast::VarDecl { ty: ty.0, ident: ty.1, init: Some(init) },
+}
+VarDecl = WithSource<VarDecl_>;
+
+ConstDecl_: ast::ConstDecl<'input> = {
+  "const" <ty: TypeIdent> "=" <init: Literal> ";" => ast::ConstDecl { ty: ty.0, ident: ty.1, init },
+}
+
+ConstDecl = WithSource<ConstDecl_>;
+AssignStmt_: ast::AssignStmt<'input> = {
+  <lhs: LValue> "=" <rhs: Expr> ";" => ast::AssignStmt { lhs, rhs },
+}
+AssignStmt = WithSource<AssignStmt_>;
+
+FuncParam_: ast::FuncParam<'input> = <loc:@L> <ti:TypeIdent> => ast::FuncParam { ty: ti.0, ident: ti.1 };
+FuncParam = WithSource<FuncParam_>;
+FuncProto_: ast::FuncProto<'input> = {
+  <ty: PrimType> <ident: Ident> "(" <params: WithSource<Comma<FuncParam>>> ")" => ast::FuncProto { ty, ident, params },
+}
+FuncProto = WithSource<FuncProto_>;
+
+IfStmt_: ast::IfStmt<'input> = {
+  "if" "(" <Expr> ")" <Block> => ast::IfStmt::If(<>),
+  "if" "(" <Expr> ")" <Block> "else" <Block> => ast::IfStmt::IfElse(<>),
+  "if" "(" <cond: Expr> ")" <then: Block> "else" <alt: IfStmt> => ast::IfStmt::IfElseIf(cond, then, Box::new(alt)),
+}
+IfStmt = WithSource<IfStmt_>;
+
+WhileStmt_: ast::WhileStmt<'input> = {
+  "while" "(" <cond: Expr> ")" <body: Block> => ast::WhileStmt { cond, body },
+}
+WhileStmt = WithSource<WhileStmt_>;
+
+Break_: () = "break" ";" => ();
+Continue_: () = "continue" ";" => ();
+Break = WithSource<Break_>;
+Continue = WithSource<Continue_>;
+
+Return_: Option<Sourced<ast::Expr<'input>>> = "return" <Expr?> ";" => <>;
+Return = WithSource<Return_>;
+
+Stmt_: ast::Stmt<'input> = {
+  ConstDecl => ast::Stmt::ConstDecl(<>),
+  VarDecl => ast::Stmt::VarDecl(<>),
+  AssignStmt => ast::Stmt::Assign(<>),
+  IfStmt => ast::Stmt::If(<>),
+  WhileStmt => ast::Stmt::While(<>),
+  Break => ast::Stmt::Break(<>),
+  Continue => ast::Stmt::Continue(<>),
+  Return => ast::Stmt::Return(<>),
+  <Expr> ";" => ast::Stmt::Expr(<>),
+  Block => ast::Stmt::Block(<>),
+}
+Stmt = WithSource<Stmt_>;
+Block_: ast::Block<'input> = {
+  "{" <stmts: Stmt+> "}" => <>,
+}
+Block = WithSource<Block_>;
+
+FuncDef_: ast::FuncDef<'input> = {
+  <proto: FuncProto> <body: Block> => ast::FuncDef { proto, body },
+}
+FuncDef = WithSource<FuncDef_>;
+
+Unit_: ast::Unit<'input> = {
+  ConstDecl => ast::Unit::ConstDecl(<>),
+  GlobalVarDecl => ast::Unit::GlobalVarDecl(<>),
+  "extern" <FuncProto> ";" => ast::Unit::ExternalFuncDecl(<>),
+  <FuncProto> ";" => ast::Unit::FuncDecl(<>),
+  FuncDef => ast::Unit::FuncDef(<>),
+}
+
+Unit = WithSource<Unit_>;
+
+pub Module: ast::Module<'input> = Unit+ => ast::Module(<>);
