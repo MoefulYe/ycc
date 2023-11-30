@@ -170,7 +170,7 @@ impl ToString for Expr<'_> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrimExpr<'a> {
-    LVal(Sourced<LValue<'a>>),
+    LValue(Sourced<LValue<'a>>),
     Literal(Sourced<Literal>),
     Paren(Box<Sourced<Expr<'a>>>),
     Call(Sourced<&'a str>, Sourced<FuncArgs<'a>>),
@@ -179,7 +179,7 @@ pub enum PrimExpr<'a> {
 impl<'a> ToString for PrimExpr<'a> {
     fn to_string(&self) -> String {
         match self {
-            PrimExpr::LVal((_, lval)) => lval.to_string(),
+            PrimExpr::LValue((_, lval)) => lval.to_string(),
             PrimExpr::Literal((_, literal)) => literal.to_string(),
             PrimExpr::Paren(expr) => expr.1.to_string(),
             PrimExpr::Call(func, sourced_args) => {

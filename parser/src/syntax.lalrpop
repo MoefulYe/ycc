@@ -95,80 +95,79 @@ PrimType_: ast::PrimType = {
 pub PrimType = WithSource<PrimType_>;
 
 
-//LValue_: AstLValue_ = {
-//  Ident => AstLValue_::Ident(<>),
-//  Ident ("["<Expr>"]")+ => AstLValue_::Idx(<>),
-//}
-//
-//pub LValue = WithSource<LValue_>;
-//
-//PrimExpr_: AstPrimExpr_ = {
-//  LValue => AstPrimExpr_::LVal(<>),
-//  Literal => AstPrimExpr_::Literal(<>),
-//  "(" <Expr> ")" => AstPrimExpr_::Paren(Box::new(<>)),
-//  <Ident> "(" <WithSource<Comma<Expr>>> ")" =>  AstPrimExpr_::Call(<>),
-//}
-//pub PrimExpr = WithSource<PrimExpr_>;
-//
-//LogicalOrOp_: AstBinaryOp_ = "||" => AstBinaryOp_::LogicalOr;
-//LogicalOrOp = WithSource<LogicalOrOp_>;
-//LogicalAndOp_: AstBinaryOp_ = "&&" => AstBinaryOp_::LogicalAnd;
-//LogicalAndOp = WithSource<LogicalAndOp_>;
-//BitOrOp_: AstBinaryOp_ = "|" => AstBinaryOp_::BitOr;
-//BitOrOp = WithSource<BitOrOp_>;
-//BitXorOp_: AstBinaryOp_ = "^" => AstBinaryOp_::BitXor;
-//BitXorOp = WithSource<BitXorOp_>;
-//BitAndOp_: AstBinaryOp_ = "&" => AstBinaryOp_::BitAnd;
-//BitAndOp = WithSource<BitAndOp_>;
-//EqOp_: AstBinaryOp_ = "==" => AstBinaryOp_::Eq;
-//EqOp = WithSource<EqOp_>;
-//NeOp_: AstBinaryOp_ = "!=" => AstBinaryOp_::Ne;
-//NeOp = WithSource<NeOp_>;
-//LtOp_: AstBinaryOp_ = "<" => AstBinaryOp_::Lt;
-//LtOp = WithSource<LtOp_>;
-//GtOp_: AstBinaryOp_ = ">" => AstBinaryOp_::Gt;
-//GtOp = WithSource<GtOp_>;
-//LeOp_: AstBinaryOp_ = "<=" => AstBinaryOp_::Le;
-//LeOp = WithSource<LeOp_>;
-//GeOp_: AstBinaryOp_ = ">=" => AstBinaryOp_::Ge;
-//GeOp = WithSource<GeOp_>;
-//ShlOp_: AstBinaryOp_ = "<<" => AstBinaryOp_::Shl;
-//ShlOp = WithSource<ShlOp_>;
-//ShrOp_: AstBinaryOp_ = ">>" => AstBinaryOp_::Shr;
-//ShrOp = WithSource<ShrOp_>;
-//AddOp_: AstBinaryOp_ = "+" => AstBinaryOp_::Add;
-//AddOp = WithSource<AddOp_>;
-//SubOp_: AstBinaryOp_ = "-" => AstBinaryOp_::Sub;
-//SubOp = WithSource<SubOp_>;
-//MulOp_: AstBinaryOp_ = "*" => AstBinaryOp_::Mul;
-//MulOp = WithSource<MulOp_>;
-//DivOp_: AstBinaryOp_ = "/" => AstBinaryOp_::Div;
-//DivOp = WithSource<DivOp_>;
-//ModOp_: AstBinaryOp_ = "%" => AstBinaryOp_::Mod;
-//ModOp = WithSource<ModOp_>;
-//
-//PosOp_: AstUnaryOp_ = "+" => AstUnaryOp_::Pos;
-//PosOp = WithSource<PosOp_>;
-//NegOp_: AstUnaryOp_ = "-" => AstUnaryOp_::Neg;
-//NegOp = WithSource<NegOp_>;
-//NotOp_: AstUnaryOp_ = "!" => AstUnaryOp_::Not;
-//NotOp = WithSource<NotOp_>;
-//BitNotOp_: AstUnaryOp_ = "~" => AstUnaryOp_::BitNot;
-//BitNotOp = WithSource<BitNotOp_>;
-//
-//Tier<Op, NextTier>: AstExpr = {
-//  <loc: @L> <lhs: Tier<Op, NextTier>> <op:Op> <rhs: NextTier> => (loc, AstExpr_::Binary(
-//    (
-//      loc, 
-//      AstBinary_ {
-//        lhs: Box::new(lhs),
-//        op: op,
-//        rhs: Box::new(rhs)
-//      }
-//    )
-//  )) ,
-//  NextTier,
-//}
+LValue_: ast::LValue = {
+  Ident => ast::LValue::Ident(<>),
+  Ident ("["<Expr>"]")+ => ast::LValue::Idx(<>),
+}
+pub LValue = WithSource<LValue_>;
+ 
+PrimExpr_: ast::PrimExpr = {
+  LValue => ast::PrimExpr::LValue(<>),
+  Literal => ast::PrimExpr::Literal(<>),
+  "(" <Expr> ")" => ast::PrimExpr::Paren(Box::new(<>)),
+  <Ident> "(" <WithSource<Comma<Expr>>> ")" =>  ast::PrimExpr::Call(<>),
+}
+pub PrimExpr = WithSource<PrimExpr_>;
+
+LogicalOrOp_: ast::BinaryOp = "||" => ast::BinaryOp::LogicalOr;
+LogicalOrOp = WithSource<LogicalOrOp_>;
+LogicalAndOp_: ast::BinaryOp = "&&" => ast::BinaryOp::LogicalAnd;
+LogicalAndOp = WithSource<LogicalAndOp_>;
+BitOrOp_: ast::BinaryOp = "|" => ast::BinaryOp::BitOr;
+BitOrOp = WithSource<BitOrOp_>;
+BitXorOp_: ast::BinaryOp = "^" => ast::BinaryOp::BitXor;
+BitXorOp = WithSource<BitXorOp_>;
+BitAndOp_: ast::BinaryOp = "&" => ast::BinaryOp::BitAnd;
+BitAndOp = WithSource<BitAndOp_>;
+EqOp_: ast::BinaryOp = "==" => ast::BinaryOp::Eq;
+EqOp = WithSource<EqOp_>;
+NeOp_: ast::BinaryOp = "!=" => ast::BinaryOp::Ne;
+NeOp = WithSource<NeOp_>;
+LtOp_: ast::BinaryOp = "<" => ast::BinaryOp::Lt;
+LtOp = WithSource<LtOp_>;
+GtOp_: ast::BinaryOp = ">" => ast::BinaryOp::Gt;
+GtOp = WithSource<GtOp_>;
+LeOp_: ast::BinaryOp = "<=" => ast::BinaryOp::Le;
+LeOp = WithSource<LeOp_>;
+GeOp_: ast::BinaryOp = ">=" => ast::BinaryOp::Ge;
+GeOp = WithSource<GeOp_>;
+ShlOp_: ast::BinaryOp = "<<" => ast::BinaryOp::Shl;
+ShlOp = WithSource<ShlOp_>;
+ShrOp_: ast::BinaryOp = ">>" => ast::BinaryOp::Shr;
+ShrOp = WithSource<ShrOp_>;
+AddOp_: ast::BinaryOp = "+" => ast::BinaryOp::Add;
+AddOp = WithSource<AddOp_>;
+SubOp_: ast::BinaryOp = "-" => ast::BinaryOp::Sub;
+SubOp = WithSource<SubOp_>;
+MulOp_: ast::BinaryOp = "*" => ast::BinaryOp::Mul;
+MulOp = WithSource<MulOp_>;
+DivOp_: ast::BinaryOp = "/" => ast::BinaryOp::Div;
+DivOp = WithSource<DivOp_>;
+ModOp_: ast::BinaryOp = "%" => ast::BinaryOp::Mod;
+ModOp = WithSource<ModOp_>;
+
+PosOp_: ast:UnaryOp = "+" => ast:UnaryOp::Pos;
+PosOp = WithSource<PosOp_>;
+NegOp_: ast:UnaryOp = "-" => ast:UnaryOp::Neg;
+NegOp = WithSource<NegOp_>;
+NotOp_: ast:UnaryOp = "!" => ast:UnaryOp::Not;
+NotOp = WithSource<NotOp_>;
+BitNotOp_: ast:UnaryOp = "~" => ast:UnaryOp::BitNot;
+BitNotOp = WithSource<BitNotOp_>;
+
+Tier<Op, NextTier>: ast::Expr = {
+  <lhs: Sourced<Tier<Op, NextTier>>> <op:Op> <rhs: Sourced<NextTier>> => (loc, AstExpr_::Binary(
+    (
+      loc, 
+      AstBinary_ {
+        lhs: Box::new(lhs),
+        op: op,
+        rhs: Box::new(rhs)
+      }
+    )
+  )) ,
+  NextTier,
+}
 //
 //pub Expr = LogicalOr;
 //LogicalOr = Tier<LogicalOrOp, LogicalAnd>;
