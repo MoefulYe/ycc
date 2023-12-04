@@ -12,4 +12,5 @@ lalrpop = { version = "0.20.0"}
 lalrpop-util = {version = "0.20.0", features = ["lexer", "unicode"]}
 thiserror = "1.0.50"
 ast = { path = "../ast" } 
+miette = { version = "5.10.0", features = ["fancy"] }
 

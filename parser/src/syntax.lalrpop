@@ -2,7 +2,7 @@ use ast::{self, Sourced};
 use crate::error::UserError;
 use lalrpop_util::ParseError;
 
-grammar;
+grammar(code: &'input str);
 
 extern {
   type Error = UserError<'input>;
@@ -39,39 +39,39 @@ Ident = WithSource<r##"[a-zA-Z_][a-zA-Z_0-9]*"##>;
 
 
 dec: i32 = <l: @L> <to_parse: r##"[\+\-]?[0-9]+"##> =>? to_parse.parse::<i32>().map_err(|err| ParseError::User {
-  error: UserError::ParseIntegerError(l, err, to_parse)
+  error: UserError::ParseIntegerError(code, l, err, to_parse)
 });
 
 IntLiteral_: ast::Literal = {
-  <loc: @L> <to_parse: r##"0x[0-9a-fA-F]+"##> =>? {
+  <l: @L> <to_parse: r##"0x[0-9a-fA-F]+"##> =>? {
     i32::from_str_radix(&to_parse[2..], 16)
       .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(loc, err, to_parse)
+        error: UserError::ParseIntegerError(code, l, err, to_parse)
       })
   },
-  <loc: @L> <to_parse: r##"0b[01]+"##> =>? {
+  <l: @L> <to_parse: r##"0b[01]+"##> =>? {
     i32::from_str_radix(&to_parse[2..], 2)
       .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(loc, err, to_parse)
+        error: UserError::ParseIntegerError(code, l, err, to_parse)
       })
   },
-  <loc: @L> <to_parse: r##"0o[0-7]+"##> =>? {
+  <l: @L> <to_parse: r##"0o[0-7]+"##> =>? {
     i32::from_str_radix(&to_parse[2..], 8)
       .map(ast::Literal::Int)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseIntegerError(loc, err, to_parse)
+        error: UserError::ParseIntegerError(code, l, err, to_parse)
       })
   },
   dec => ast::Literal::Int(<>),
 }
 FloatLiteral_: ast::Literal = {
-  <loc: @L> <to_parse: r##"[\-\+]?[0-9]+\.[0-9]+([eE][\+\-]?[0-9]+)?"##> =>? {
+  <l: @L> <to_parse: r##"[\-\+]?[0-9]+\.[0-9]+([eE][\+\-]?[0-9]+)?"##> =>? {
     to_parse.parse::<f32>()
       .map(ast::Literal::Float)
       .map_err(|err| ParseError::User {
-        error: UserError::ParseFloatError(loc, err, to_parse)
+        error: UserError::ParseFloatError(code, l, err, to_parse)
       })
   }
 }
@@ -228,7 +228,22 @@ AssignStmt_: ast::AssignStmt<'input> = {
 }
 AssignStmt = WithSource<AssignStmt_>;
 
-FuncParam_: ast::FuncParam<'input> = <loc:@L> <ti:TypeIdent> => ast::FuncParam { ty: ti.0, ident: ti.1 };
+FuncParam_: ast::FuncParam<'input> = {
+  <begin: @L> <ty: PrimType> <ident: Ident> => ast::FuncParam {ty: (begin, ast::Type::Prim(ty)), ident},
+  <loc0: @L> <ty: PrimType> <ident: Ident> <loc1: @L> <mut idxs: (Around<"[", dec?, "]">)+> => {
+      ast::FuncParam {
+        ty: (
+          loc0, 
+          ast::Type::Array(
+            ty, 
+            (loc1, idxs.iter().map(|item|item.unwrap_or(i32::MAX)).collect::<Vec<_>>())
+          )
+        ),
+        ident
+      }
+  }
+}
+
 FuncParam = WithSource<FuncParam_>;
 FuncProto_: ast::FuncProto<'input> = {
   <ty: PrimType> <ident: Ident> "(" <params: WithSource<Comma<FuncParam>>> ")" => ast::FuncProto { ty, ident, params },
@@ -281,7 +296,6 @@ FuncDef = WithSource<FuncDef_>;
 Unit_: ast::Unit<'input> = {
   ConstDecl => ast::Unit::ConstDecl(<>),
   GlobalVarDecl => ast::Unit::GlobalVarDecl(<>),
-  "extern" <FuncProto> ";" => ast::Unit::ExternalFuncDecl(<>),
   <FuncProto> ";" => ast::Unit::FuncDecl(<>),
   FuncDef => ast::Unit::FuncDef(<>),
 }

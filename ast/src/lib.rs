@@ -20,7 +20,6 @@ impl<'a> Display for Module<'a> {
 pub enum Unit<'a> {
     ConstDecl(Sourced<ConstDecl<'a>>),
     GlobalVarDecl(Sourced<GlobalVarDecl<'a>>),
-    ExternalFuncDecl(Sourced<FuncProto<'a>>),
     FuncDecl(Sourced<FuncProto<'a>>),
     FuncDef(Sourced<FuncDef<'a>>),
 }
@@ -30,19 +29,29 @@ impl<'a> Display for Unit<'a> {
         match self {
             Unit::ConstDecl(unit) => write!(f, "{}", unit.1),
             Unit::GlobalVarDecl(unit) => write!(f, "{}", unit.1),
-            Unit::ExternalFuncDecl(unit) => write!(f, "{};\n", unit.1),
             Unit::FuncDecl(unit) => write!(f, "{};\n", unit.1),
             Unit::FuncDef(unit) => write!(f, "{}", unit.1),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimType {
     Void,
     Bool,
     Int,
     Float,
+}
+
+impl PrimType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PrimType::Void => "void",
+            PrimType::Bool => "bool",
+            PrimType::Int => "int",
+            PrimType::Float => "float",
+        }
+    }
 }
 
 impl Display for PrimType {
@@ -75,6 +84,17 @@ pub enum Literal {
     List(Vec<Sourced<Literal>>),
 }
 
+impl Literal {
+    pub fn type_str(&self) -> &'static str {
+        match self {
+            Literal::Bool(_) => "bool",
+            Literal::Int(_) => "int",
+            Literal::Float(_) => "float",
+            Literal::List(_) => "array",
+        }
+    }
+}
+
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -103,6 +123,20 @@ pub enum Type {
     Array(Sourced<PrimType>, Sourced<Vec<i32>>),
 }
 
+impl Type {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Type::Prim(ty) => ty.1.as_str(),
+            Type::Array(ty, _) => match ty.1 {
+                PrimType::Void => "array of void",
+                PrimType::Bool => "array of bool",
+                PrimType::Int => "array of int",
+                PrimType::Float => "array of float",
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstDecl<'a> {
     pub ty: Sourced<Type>,
@@ -115,7 +149,7 @@ impl<'a> Display for ConstDecl<'a> {
         match &self.ty.1 {
             Type::Prim((_, ty)) => write!(f, "const {} {} = {};\n", ty, self.ident.1, self.init.1),
             Type::Array((_, ty), (_, dim)) => {
-                let dim = dim.iter().fold(String::new(), |mut acc, item| {
+                let dim = dim.iter().fold(String::new(), |mut acc, &item| {
                     acc.push_str(&format!("[{}]", item));
                     acc
                 });
@@ -218,8 +252,12 @@ impl<'a> Display for FuncParam<'a> {
         match &self.ty.1 {
             Type::Prim((_, ty)) => write!(f, "{} {}", ty, self.ident.1),
             Type::Array((_, ty), (_, dim)) => {
-                let dim = dim.iter().fold(String::new(), |mut acc, item| {
-                    acc.push_str(&format!("[{}]", item));
+                let dim = dim.iter().fold(String::new(), |mut acc, &item| {
+                    if item == i32::MAX {
+                        acc.push_str("[]");
+                    } else {
+                        acc.push_str(&format!("[{}]", item));
+                    }
                     acc
                 });
                 write!(f, "{} {}{}", ty, self.ident.1, dim)
