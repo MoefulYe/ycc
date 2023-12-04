@@ -1,4 +1,3 @@
-use lalrpop_util::ParseError;
 use miette::Result;
 
 fn main() -> Result<()> {
@@ -12,9 +11,6 @@ int func(int array[]) {
 
 int main() { return (ifElse()); }
             "##;
-    let parsed = parser::parse(code).unwrap_err();
-    if let ParseError::User { error } = parsed {
-        return Err(error)?;
-    }
+    parser::parse("test", code)?;
     Ok(())
 }
