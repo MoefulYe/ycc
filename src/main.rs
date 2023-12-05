@@ -11,6 +11,5 @@ int func(int array[]) {
 
 int main() { return (ifElse()); }
             "##;
-    parser::parse("test", code)?;
     Ok(())
 }

@@ -1,13 +1,12 @@
 [package]
-name = "ycc"
+name = "visual_ast"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[workspace]
-members = [".", "ast" ,"parser", "visual_ast" , "codegen"]
 
 [dependencies]
-lalrpop-util = {version = "0.20.0", features = ["lexer", "unicode"]}
+ast = { path = "../ast" }
+parser = { path = "../parser" }
 miette = { version = "5.10.0", features = ["fancy"] }
-parser = { path = "parser" }
+graphviz-rust = "0.6.6"

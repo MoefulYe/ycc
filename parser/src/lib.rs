@@ -1,8 +1,8 @@
-pub mod error;
+mod error;
 use error::YccParseError;
 use lalrpop_util::lalrpop_mod;
 use miette::NamedSource;
-lalrpop_mod!(pub syntax); // synthesized by LALRPOP
+lalrpop_mod!(syntax); // synthesized by LALRPOP
 
 pub fn parse<'input>(
     name: &'input str,
