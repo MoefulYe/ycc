@@ -7,6 +7,7 @@ fn main() {
     const int a[2][2]= {1,2};
     int a = 1;
     int a(int a, int b) {
+        return;
         int c = 0;
     }
     "##;

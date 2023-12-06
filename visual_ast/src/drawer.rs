@@ -236,14 +236,6 @@ impl Drawer for ast::VarDecl<'_> {
     }
 }
 
-impl Drawer for ast::Expr<'_> {
-    type Out = String;
-
-    fn draw(&self, g: &mut Graph) -> Self::Out {
-        todo!()
-    }
-}
-
 impl Drawer for ast::AssignStmt<'_> {
     type Out = String;
 
@@ -256,14 +248,6 @@ impl Drawer for ast::AssignStmt<'_> {
         let rhs = self.rhs.1.draw(g);
         g.add_stmt(edge!(node_id!(this) => node_id!(rhs); attr!("label", "\"rhs\"")).into());
         this
-    }
-}
-
-impl Drawer for ast::LValue<'_> {
-    type Out = String;
-
-    fn draw(&self, g: &mut Graph) -> Self::Out {
-        todo!()
     }
 }
 
@@ -330,5 +314,74 @@ impl Drawer for ast::WhileStmt<'_> {
         let body = self.body.1.draw(g);
         g.add_stmt(edge!(node_id!(this) => node_id!(body); attr!("label", "\"body\"")).into());
         this
+    }
+}
+
+impl Drawer for ast::Expr<'_> {
+    type Out = String;
+
+    fn draw(&self, g: &mut Graph) -> Self::Out {
+        match self {
+            ast::Expr::Prim((_, expr)) => expr.draw(g),
+            ast::Expr::Unary((_, expr)) => {
+                let this = rand::id();
+                let label = expr.op.1.to_string();
+                g.add_stmt(node!(this; attr!("label", label)).into());
+                let rhs = expr.rhs.1.draw(g);
+                g.add_stmt(
+                    edge!(node_id!(this) => node_id!(rhs); attr!("label", "\"rhs\"")).into(),
+                );
+                this
+            }
+            ast::Expr::Binary((_, expr)) => {
+                let this = rand::id();
+                let label = expr.op.1.to_string();
+                g.add_stmt(node!(this; attr!("label", label)).into());
+                let lhs = expr.lhs.1.draw(g);
+                g.add_stmt(
+                    edge!(node_id!(this) => node_id!(lhs); attr!("label", "\"lhs\"")).into(),
+                );
+                let rhs = expr.rhs.1.draw(g);
+                g.add_stmt(
+                    edge!(node_id!(this) => node_id!(rhs); attr!("label", "\"rhs\"")).into(),
+                );
+                this
+            }
+        }
+    }
+}
+
+impl Leaf for ast::LValue<'_> {}
+
+impl Drawer for ast::PrimExpr<'_> {
+    type Out = String;
+
+    fn draw(&self, g: &mut Graph) -> Self::Out {
+        match self {
+            ast::PrimExpr::LValue((_, expr)) => expr.draw(g),
+            ast::PrimExpr::Literal((_, expr)) => expr.draw(g),
+            ast::PrimExpr::Paren(expr) => {
+                let this = rand::id();
+                let label = "\"(...)\"".to_owned();
+                g.add_stmt(node!(this; attr!("label", label)).into());
+                let expr = expr.1.draw(g);
+                g.add_stmt(
+                    edge!(node_id!(this) => node_id!(expr); attr!("label", "\"expr\"")).into(),
+                );
+                this
+            }
+            ast::PrimExpr::Call((_, func), (_, args)) => {
+                let this = rand::id();
+                let label = format!("\"{}(...)\"", func);
+                g.add_stmt(node!(this; attr!("label", label)).into());
+                args.iter().for_each(|(_, arg)| {
+                    let arg = arg.draw(g);
+                    g.add_stmt(
+                        edge!(node_id!(this) => node_id!(arg); attr!("label", "\"arg\"")).into(),
+                    );
+                });
+                this
+            }
+        }
     }
 }
