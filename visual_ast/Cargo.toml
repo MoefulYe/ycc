@@ -10,3 +10,4 @@ ast = { path = "../ast" }
 parser = { path = "../parser" }
 miette = { version = "5.10.0", features = ["fancy"] }
 graphviz-rust = "0.6.6"
+rand = "0.8.5"

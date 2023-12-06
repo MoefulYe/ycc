@@ -1025,6 +1025,7 @@ dependencies = [
  "graphviz-rust",
  "miette",
  "parser",
+ "rand",
 ]
 
 [[package]]
