@@ -2,7 +2,7 @@ use ast::Loc;
 use core::fmt;
 use lalrpop_util::lexer::Token;
 use lalrpop_util::ParseError as LalrpopParseError;
-use miette::{Diagnostic, NamedSource};
+use miette::Diagnostic;
 use std::{
     fmt::Display,
     num::{ParseFloatError, ParseIntError},
@@ -12,73 +12,27 @@ use std::{
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
-pub enum UserError<'input> {
+pub enum UserError {
     #[error("fail to parse `{2}` to integer: {1}")]
     #[diagnostic(code(ParseError::ParseIntegerError))]
-    ParseIntegerError(#[label("here")] Loc, ParseIntError, &'input str),
+    ParseIntegerError(#[label("here")] Loc, ParseIntError, String),
     #[error("fail to parse `{2}` to float: {1}")]
     #[diagnostic(code(ParseError::ParseFloatError))]
-    ParseFloatError(#[label("here")] Loc, ParseFloatError, &'input str),
+    ParseFloatError(#[label("here")] Loc, ParseFloatError, String),
 }
 
 #[derive(Error, Debug, Diagnostic)]
-pub enum SourcedUserError<'input> {
-    #[error("fail to parse `{2}` to integer: {1}")]
-    #[diagnostic(code(ParseError::ParseIntegerError))]
-    ParseIntegerError(
-        #[label("here")] Loc,
-        ParseIntError,
-        &'input str,
-        #[source_code] NamedSource,
-    ),
-    #[error("fail to parse `{2}` to float: {1}")]
-    #[diagnostic(code(ParseError::ParseFloatError))]
-    ParseFloatError(
-        #[label("here")] Loc,
-        ParseFloatError,
-        &'input str,
-        #[source_code] NamedSource,
-    ),
-}
-
-impl<'input> From<(UserError<'input>, NamedSource)> for SourcedUserError<'input> {
-    fn from((err, src): (UserError<'input>, NamedSource)) -> Self {
-        match err {
-            UserError::ParseIntegerError(loc, err, tok) => {
-                SourcedUserError::ParseIntegerError(loc, err, tok, src)
-            }
-            UserError::ParseFloatError(loc, err, tok) => {
-                SourcedUserError::ParseFloatError(loc, err, tok, src)
-            }
-        }
-    }
-}
-
-#[derive(Error, Debug, Diagnostic)]
-pub enum YccParseError<'input> {
+pub enum YccParseError {
     #[diagnostic(code(ParseError::InvalidToken))]
-    InvalidToken(#[label("here")] Loc, #[source_code] NamedSource),
+    InvalidToken(#[label("here")] Loc),
     #[diagnostic(code(ParseError::UnrecognizedEof))]
-    UnrecognizedEof(
-        #[label("here")] Loc,
-        Vec<String>,
-        #[source_code] NamedSource,
-    ),
+    UnrecognizedEof(#[label("here")] Loc, Vec<String>),
     #[diagnostic(code(ParseError::UnrecognizedToken))]
-    UnrecognizedToken(
-        Token<'input>,
-        #[label("here")] Range<Loc>,
-        Vec<String>,
-        #[source_code] NamedSource,
-    ),
+    UnrecognizedToken(String, #[label("here")] Range<Loc>, Vec<String>),
     #[diagnostic(code(ParseError::ExtraToken))]
-    ExtraToken(
-        Token<'input>,
-        #[label("here")] Range<Loc>,
-        #[source_code] NamedSource,
-    ),
+    ExtraToken(String, #[label("here")] Range<Loc>),
     #[diagnostic(transparent)]
-    User(SourcedUserError<'input>),
+    User(UserError),
 }
 
 fn fmt_expected(f: &mut fmt::Formatter<'_>, expected: &[String]) -> result::Result<(), fmt::Error> {
@@ -97,19 +51,19 @@ fn fmt_expected(f: &mut fmt::Formatter<'_>, expected: &[String]) -> result::Resu
     Ok(())
 }
 
-impl<'input> Display for YccParseError<'input> {
+impl Display for YccParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            YccParseError::InvalidToken(_, _) => write!(f, "invalid token"),
-            YccParseError::UnrecognizedEof(_, expected, _) => {
+            YccParseError::InvalidToken(_) => write!(f, "invalid token"),
+            YccParseError::UnrecognizedEof(_, expected) => {
                 write!(f, "unrecognized eof")?;
                 fmt_expected(f, expected)
             }
-            YccParseError::UnrecognizedToken(token, _, expected, _) => {
+            YccParseError::UnrecognizedToken(token, _, expected) => {
                 write!(f, "unrecognized token `{}`", token)?;
                 fmt_expected(f, expected)
             }
-            YccParseError::ExtraToken(token, _, _) => {
+            YccParseError::ExtraToken(token, _) => {
                 write!(f, "extra token `{}`", token)
             }
             YccParseError::User(err) => write!(f, "{}", err),
@@ -117,35 +71,21 @@ impl<'input> Display for YccParseError<'input> {
     }
 }
 
-impl<'input>
-    From<(
-        LalrpopParseError<Loc, Token<'input>, UserError<'input>>,
-        NamedSource,
-    )> for YccParseError<'input>
-{
-    fn from(
-        (err, src): (
-            LalrpopParseError<Loc, Token<'input>, UserError<'input>>,
-            NamedSource,
-        ),
-    ) -> Self {
+impl<'input> From<LalrpopParseError<Loc, Token<'input>, UserError>> for YccParseError {
+    fn from(err: LalrpopParseError<Loc, Token<'input>, UserError>) -> Self {
         match err {
-            LalrpopParseError::InvalidToken { location } => {
-                YccParseError::InvalidToken(location, src)
-            }
+            LalrpopParseError::InvalidToken { location } => YccParseError::InvalidToken(location),
             LalrpopParseError::UnrecognizedEof { location, expected } => {
-                YccParseError::UnrecognizedEof(location, expected, src)
+                YccParseError::UnrecognizedEof(location, expected)
             }
             LalrpopParseError::UnrecognizedToken {
                 token: (start, token, end),
                 expected,
-            } => YccParseError::UnrecognizedToken(token, start..end, expected, src),
+            } => YccParseError::UnrecognizedToken(token.1.to_owned(), start..end, expected),
             LalrpopParseError::ExtraToken {
                 token: (start, token, end),
-            } => YccParseError::ExtraToken(token, start..end, src),
-            LalrpopParseError::User { error } => {
-                YccParseError::User(SourcedUserError::from((error, src)))
-            }
+            } => YccParseError::ExtraToken(token.1.to_owned(), start..end),
+            LalrpopParseError::User { error } => YccParseError::User(error),
         }
     }
 }

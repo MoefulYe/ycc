@@ -325,7 +325,7 @@ impl Drawer for ast::Expr<'_> {
             ast::Expr::Prim((_, expr)) => expr.draw(g),
             ast::Expr::Unary((_, expr)) => {
                 let this = rand::id();
-                let label = expr.op.1.to_string();
+                let label = format!("\"{}\"", expr.op.1.to_string());
                 g.add_stmt(node!(this; attr!("label", label)).into());
                 let rhs = expr.rhs.1.draw(g);
                 g.add_stmt(
@@ -335,7 +335,7 @@ impl Drawer for ast::Expr<'_> {
             }
             ast::Expr::Binary((_, expr)) => {
                 let this = rand::id();
-                let label = expr.op.1.to_string();
+                let label = format!("\"{}\"", expr.op.1.to_string());
                 g.add_stmt(node!(this; attr!("label", label)).into());
                 let lhs = expr.lhs.1.draw(g);
                 g.add_stmt(
