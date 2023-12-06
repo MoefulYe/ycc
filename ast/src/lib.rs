@@ -123,6 +123,25 @@ pub enum Type {
     Array(Sourced<PrimType>, Sourced<Vec<i32>>),
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Prim(ty) => write!(f, "{}", ty.1),
+            Type::Array(ty, dim) => {
+                let dim = dim.1.iter().fold(String::new(), |mut acc, &item| {
+                    if item == i32::MAX {
+                        acc.push_str("[]");
+                    } else {
+                        acc.push_str(&format!("[{}]", item));
+                    }
+                    acc
+                });
+                write!(f, "{}{}", ty.1, dim)
+            }
+        }
+    }
+}
+
 impl Type {
     pub fn as_str(&self) -> &'static str {
         match self {
