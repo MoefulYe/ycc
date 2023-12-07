@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use inkwell::{
     builder::Builder,
     context::Context,
@@ -5,17 +7,31 @@ use inkwell::{
     types::{FloatType, IntType, VoidType},
 };
 
-use crate::scope::SymbolScope;
+use crate::scope::Symbols;
 
-pub struct CodeGener<'ctx> {
-    //TODO
+pub struct Compiler<'ctx, 'input>
+where
+    'ctx: 'input,
+{
     ctx: Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    symbol_table: SymbolScope<'ctx, 'ctx>,
+    symbols: Symbols<'input, 'ctx>,
 }
 
-impl<'ctx> CodeGener<'ctx> {
+impl<'ctx, 'input> Compiler<'ctx, 'input> {
+    pub fn new(module_name: &str) -> Self {
+        let ctx = Context::create();
+        let module = ctx.create_module(module_name);
+        let builder = ctx.create_builder();
+        Self {
+            ctx,
+            module,
+            builder,
+            symbols: Symbols::new(),
+        }
+    }
+
     #[inline]
     pub fn bool_type(&'ctx self) -> IntType<'ctx> {
         self.ctx.bool_type()
@@ -34,5 +50,35 @@ impl<'ctx> CodeGener<'ctx> {
     #[inline]
     pub fn void_type(&'ctx self) -> VoidType<'ctx> {
         self.ctx.void_type()
+    }
+}
+
+pub struct ScopedGuard<'a, 'input> {
+    compiler: &'a mut Compiler<'a, 'input>,
+}
+
+impl<'a, 'input> Drop for ScopedGuard<'a, 'input> {
+    fn drop(&mut self) {
+        println!("droped");
+    }
+}
+
+impl<'a, 'input> Deref for ScopedGuard<'a, 'input> {
+    type Target = Compiler<'a, 'input>;
+
+    fn deref(&self) -> &Self::Target {
+        self.compiler
+    }
+}
+
+impl<'a, 'input> DerefMut for ScopedGuard<'a, 'input> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.compiler
+    }
+}
+
+impl<'a, 'input> ScopedGuard<'a, 'input> {
+    pub fn new(compiler: &'a mut Compiler<'a, 'input>) -> Self {
+        Self { compiler }
     }
 }

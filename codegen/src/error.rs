@@ -1,5 +1,5 @@
 use ast::Loc;
-use miette::{Diagnostic, NamedSource};
+use miette::Diagnostic;
 use thiserror::Error;
 pub type Result<T, E = CodeGenError> = std::result::Result<T, E>;
 
@@ -34,13 +34,4 @@ pub enum CodeGenError {
         #[label("excess elements in array initializer")]
         loc: Loc,
     },
-}
-
-#[derive(Error, Diagnostic, Debug)]
-#[error("{err}")]
-pub struct SourcedCodeGenError {
-    #[diagnostic(transparent)]
-    err: CodeGenError,
-    #[source_code]
-    src: NamedSource,
 }

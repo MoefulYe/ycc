@@ -2,9 +2,13 @@ use std::collections::HashMap;
 
 use inkwell::values::BasicValueEnum;
 
-pub struct SymbolScope<'input, 'ctx>(Vec<HashMap<&'input str, BasicValueEnum<'ctx>>>);
+pub struct Symbols<'input, 'ctx>(Vec<HashMap<&'input str, BasicValueEnum<'ctx>>>);
 
-impl<'input, 'ctx> SymbolScope<'input, 'ctx> {
+impl<'input, 'ctx> Symbols<'input, 'ctx> {
+    pub fn new() -> Self {
+        Symbols(vec![])
+    }
+
     pub fn enter(&mut self) {
         self.0.push(HashMap::new())
     }

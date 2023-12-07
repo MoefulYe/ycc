@@ -4,14 +4,14 @@ use ast::{Literal, Loc, PrimType, Sourced, Type};
 use inkwell::types::{AnyType, ArrayType, BasicType, BasicTypeEnum, IntType};
 use inkwell::values::{ArrayValue, BasicValue, BasicValueEnum};
 
-use crate::compiler::CodeGener;
+use crate::compiler::Compiler;
 use crate::error::{CodeGenError, Result};
 
 pub trait TryIntoLLVMValue {
     fn llvm_value<'a, 'ctx>(
         &self,
         ty: &Sourced<Type>,
-        codegener: &'a CodeGener<'ctx>,
+        codegener: &'a Compiler<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>>
     where
         'a: 'ctx;
@@ -21,7 +21,7 @@ impl TryIntoLLVMValue for Sourced<Literal> {
     fn llvm_value<'a, 'ctx>(
         &self,
         ty: &Sourced<Type>,
-        codegener: &'a CodeGener<'ctx>,
+        codegener: &'a Compiler<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>>
     where
         'a: 'ctx,
