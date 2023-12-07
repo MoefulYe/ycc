@@ -7,28 +7,25 @@ use inkwell::{
     types::{FloatType, IntType, VoidType},
 };
 
-use crate::scope::Symbols;
+use crate::scope::Scopes;
 
 pub struct Compiler<'ctx, 'input>
 where
     'ctx: 'input,
 {
-    ctx: Context,
+    ctx: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    symbols: Symbols<'input, 'ctx>,
+    scopes: Scopes<'input, 'ctx>,
 }
 
 impl<'ctx, 'input> Compiler<'ctx, 'input> {
-    pub fn new(module_name: &str) -> Self {
-        let ctx = Context::create();
-        let module = ctx.create_module(module_name);
-        let builder = ctx.create_builder();
+    pub fn new(ctx: &'ctx Context, mod_name: &str) -> Self {
         Self {
             ctx,
-            module,
-            builder,
-            symbols: Symbols::new(),
+            module: ctx.create_module(mod_name),
+            builder: ctx.create_builder(),
+            scopes: Scopes::new(),
         }
     }
 

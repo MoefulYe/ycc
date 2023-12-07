@@ -1,32 +1,24 @@
-use std::ops::Deref;
-
 use ast::{Literal, Loc, PrimType, Sourced, Type};
-use inkwell::types::{AnyType, ArrayType, BasicType, BasicTypeEnum, IntType};
+use inkwell::types::{AnyType, ArrayType, BasicType, BasicTypeEnum, FloatType, IntType};
 use inkwell::values::{ArrayValue, BasicValue, BasicValueEnum};
 
 use crate::compiler::Compiler;
 use crate::error::{CodeGenError, Result};
 
 pub trait TryIntoLLVMValue {
-    fn llvm_value<'a, 'ctx>(
+    fn llvm_value<'input, 'ctx>(
         &self,
         ty: &Sourced<Type>,
-        codegener: &'a Compiler<'ctx>,
-    ) -> Result<BasicValueEnum<'ctx>>
-    where
-        'a: 'ctx;
+        compiler: &'ctx Compiler<'ctx, 'input>,
+    ) -> Result<BasicValueEnum<'ctx>>;
 }
 
 impl TryIntoLLVMValue for Sourced<Literal> {
-    fn llvm_value<'a, 'ctx>(
+    fn llvm_value<'input, 'ctx>(
         &self,
-        ty: &Sourced<Type>,
-        codegener: &'a Compiler<'ctx>,
-    ) -> Result<BasicValueEnum<'ctx>>
-    where
-        'a: 'ctx,
-    {
-        let (ty_loc, ty) = ty;
+        (ty_loc, ty): &Sourced<Type>,
+        codegener: &'ctx Compiler<'ctx, 'input>,
+    ) -> Result<BasicValueEnum<'ctx>> {
         let (lit_loc, lit) = self;
         match ty {
             Type::Prim(prim) => match prim.1 {
@@ -79,6 +71,9 @@ impl TryIntoLLVMValue for Sourced<Literal> {
             },
             Type::Array((prim_loc, prim), (dims_loc, dims)) => {
                 if let Literal::List(arr) = lit {
+                    if !is_legal(dims) {
+                        return Err(CodeGenError::IllegalArraySize { loc: *dims_loc });
+                    }
                     todo!()
                 } else {
                     Err(CodeGenError::TypeMismatch {
@@ -92,21 +87,21 @@ impl TryIntoLLVMValue for Sourced<Literal> {
         }
     }
 }
+//
+// fn handle_array_int<'ctx>(
+//     arr: &[Sourced<Literal>],
+//     prim_loc: Loc,
+//     dims_loc: Loc,
+//     type_: impl BasicType<'ctx>,
+//     dims: &[i32],
+// ) -> Result<BasicValueEnum<'ctx>> {
+//     if dims.iter().any(|&size| size <= 0) {
+//         return Err(CodeGenError::IllegalArraySize { loc: dims_loc });
+//     }
+//     todo!()
+// }
 
 fn handle_array_int<'ctx>(
-    arr: &[Sourced<Literal>],
-    prim_loc: Loc,
-    dims_loc: Loc,
-    type_: impl BasicType<'ctx>,
-    dims: &[i32],
-) -> Result<BasicValueEnum<'ctx>> {
-    if dims.iter().any(|&size| size <= 0) {
-        return Err(CodeGenError::IllegalArraySize { loc: dims_loc });
-    }
-    todo!()
-}
-
-fn handle_array_int_<'ctx>(
     arr: &[Sourced<Literal>],
     type_: IntType<'ctx>,
     dims: &[i32],
@@ -115,8 +110,13 @@ fn handle_array_int_<'ctx>(
     if dims.is_empty() {
         unreachable!()
     } else if dims.len() == 1 {
-        let size = *dims.last().unwrap() as u32;
+        let size = *dims.first().unwrap() as u32;
         let arr_ty = type_.array_type(size);
+        if arr.len() > size as usize {
+            return Err(CodeGenError::ExcessElementsInArrayInitializer {
+                loc: arr[size as usize].0,
+            });
+        }
         let mut res = arr
             .iter()
             .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
@@ -136,38 +136,240 @@ fn handle_array_int_<'ctx>(
                 }
                 Err(err) => Err(err),
             })?;
-        let res_len = res.len();
-        if res_len < size as usize {
-            (res_len..size as usize).for_each(|_| res.push(type_.const_zero()))
-        } else if res_len > size as usize {
+        (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
+        let arr_val = type_.const_array(&res);
+        Ok((arr_ty, arr_val))
+    } else {
+        let size = *dims.first().unwrap() as u32;
+        if arr.len() > size as usize {
+            Err(CodeGenError::ExcessElementsInArrayInitializer {
+                loc: arr[size as usize].0,
+            })
+        } else if arr.len() == 0 {
+            let ty = ndim_arr_of(type_, dims);
+            let val = ty.const_zero();
+            Ok((ty, val))
+        } else {
+            let (first_loc, first) = arr.first().unwrap();
+            let (ty, first) = if let Literal::List(arr) = first {
+                handle_array_int(arr, type_, &dims[1..], prim_loc)?
+            } else {
+                return Err(CodeGenError::TypeMismatch {
+                    expected: "array",
+                    expected_loc: prim_loc,
+                    found: first.type_str(),
+                    found_loc: *first_loc,
+                });
+            };
+            let mut val =
+                arr.iter()
+                    .skip(1)
+                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
+                        Ok(mut ok) => match item {
+                            Literal::List(arr) => {
+                                let (_, val) = handle_array_int(arr, type_, dims, prim_loc)?;
+                                ok.push(val);
+                                Ok(ok)
+                            }
+                            _ => Err(CodeGenError::TypeMismatch {
+                                expected: "array",
+                                expected_loc: prim_loc,
+                                found: item.type_str(),
+                                found_loc: *loc,
+                            }),
+                        },
+                        Err(err) => Err(err),
+                    })?;
+            (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
+            let ty = ty.array_type(size);
+            let val = ty.const_array(&val);
+            Ok((ty, val))
+        }
+    }
+}
+//
+fn handle_array_bool<'ctx>(
+    arr: &[Sourced<Literal>],
+    type_: IntType<'ctx>,
+    dims: &[i32],
+    prim_loc: Loc,
+) -> Result<(ArrayType<'ctx>, ArrayValue<'ctx>)> {
+    if dims.is_empty() {
+        unreachable!()
+    } else if dims.len() == 1 {
+        let size = *dims.first().unwrap() as u32;
+        let arr_ty = type_.array_type(size);
+        if arr.len() > size as usize {
             return Err(CodeGenError::ExcessElementsInArrayInitializer {
                 loc: arr[size as usize].0,
             });
         }
+        let mut res = arr
+            .iter()
+            .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
+                Ok(mut ok) => {
+                    if let Literal::Bool(val) = lit {
+                        let val = type_.const_int(*val as u64, false);
+                        ok.push(val);
+                        Ok(ok)
+                    } else {
+                        Err(CodeGenError::TypeMismatch {
+                            expected: "bool",
+                            expected_loc: prim_loc,
+                            found: lit.type_str(),
+                            found_loc: *lit_loc,
+                        })
+                    }
+                }
+                Err(err) => Err(err),
+            })?;
+        (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
         let arr_val = type_.const_array(&res);
         Ok((arr_ty, arr_val))
     } else {
-        let mut res = arr.iter()
+        let size = *dims.first().unwrap() as u32;
+        if arr.len() > size as usize {
+            Err(CodeGenError::ExcessElementsInArrayInitializer {
+                loc: arr[size as usize].0,
+            })
+        } else if arr.len() == 0 {
+            let ty = ndim_arr_of(type_, dims);
+            let val = ty.const_zero();
+            Ok((ty, val))
+        } else {
+            let (first_loc, first) = arr.first().unwrap();
+            let (ty, first) = if let Literal::List(arr) = first {
+                handle_array_bool(arr, type_, &dims[1..], prim_loc)?
+            } else {
+                return Err(CodeGenError::TypeMismatch {
+                    expected: "array",
+                    expected_loc: prim_loc,
+                    found: first.type_str(),
+                    found_loc: *first_loc,
+                });
+            };
+            let mut val =
+                arr.iter()
+                    .skip(1)
+                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
+                        Ok(mut ok) => match item {
+                            Literal::List(arr) => {
+                                let (_, val) = handle_array_bool(arr, type_, dims, prim_loc)?;
+                                ok.push(val);
+                                Ok(ok)
+                            }
+                            _ => Err(CodeGenError::TypeMismatch {
+                                expected: "array",
+                                expected_loc: prim_loc,
+                                found: item.type_str(),
+                                found_loc: *loc,
+                            }),
+                        },
+                        Err(err) => Err(err),
+                    })?;
+            (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
+            let ty = ty.array_type(size);
+            let val = ty.const_array(&val);
+            Ok((ty, val))
+        }
     }
 }
 
-//构造n维数组类型
-fn get_array<'ctx>(dims: &[i32], type_: impl BasicType<'ctx>) -> Result<ArrayType<'ctx>, ()> {
+fn handle_array_float<'ctx>(
+    arr: &[Sourced<Literal>],
+    type_: FloatType<'ctx>,
+    dims: &[i32],
+    prim_loc: Loc,
+) -> Result<(ArrayType<'ctx>, ArrayValue<'ctx>)> {
+    if dims.is_empty() {
+        unreachable!()
+    } else if dims.len() == 1 {
+        let size = *dims.first().unwrap() as u32;
+        let arr_ty = type_.array_type(size);
+        if arr.len() > size as usize {
+            return Err(CodeGenError::ExcessElementsInArrayInitializer {
+                loc: arr[size as usize].0,
+            });
+        }
+        let mut res = arr
+            .iter()
+            .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
+                Ok(mut ok) => {
+                    if let Literal::Float(val) = lit {
+                        let val = type_.const_float(*val as f64);
+                        ok.push(val);
+                        Ok(ok)
+                    } else {
+                        Err(CodeGenError::TypeMismatch {
+                            expected: "float",
+                            expected_loc: prim_loc,
+                            found: lit.type_str(),
+                            found_loc: *lit_loc,
+                        })
+                    }
+                }
+                Err(err) => Err(err),
+            })?;
+        (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
+        let arr_val = type_.const_array(&res);
+        Ok((arr_ty, arr_val))
+    } else {
+        let size = *dims.first().unwrap() as u32;
+        if arr.len() > size as usize {
+            Err(CodeGenError::ExcessElementsInArrayInitializer {
+                loc: arr[size as usize].0,
+            })
+        } else if arr.len() == 0 {
+            let ty = ndim_arr_of(type_, dims);
+            let val = ty.const_zero();
+            Ok((ty, val))
+        } else {
+            let (first_loc, first) = arr.first().unwrap();
+            let (ty, first) = if let Literal::List(arr) = first {
+                handle_array_float(arr, type_, &dims[1..], prim_loc)?
+            } else {
+                return Err(CodeGenError::TypeMismatch {
+                    expected: "array",
+                    expected_loc: prim_loc,
+                    found: first.type_str(),
+                    found_loc: *first_loc,
+                });
+            };
+            let mut val =
+                arr.iter()
+                    .skip(1)
+                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
+                        Ok(mut ok) => match item {
+                            Literal::List(arr) => {
+                                let (_, val) = handle_array_float(arr, type_, dims, prim_loc)?;
+                                ok.push(val);
+                                Ok(ok)
+                            }
+                            _ => Err(CodeGenError::TypeMismatch {
+                                expected: "array",
+                                expected_loc: prim_loc,
+                                found: item.type_str(),
+                                found_loc: *loc,
+                            }),
+                        },
+                        Err(err) => Err(err),
+                    })?;
+            (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
+            let ty = ty.array_type(size);
+            let val = ty.const_array(&val);
+            Ok((ty, val))
+        }
+    }
+}
+
+fn is_legal(dims: &[i32]) -> bool {
+    dims.iter().all(|&dim| dim > 0)
+}
+
+//caller must guarantee that dims is not empty and size > 0
+fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
     let mut it = dims.iter().rev();
     let &size = it.next().unwrap();
-    let init = if size <= 0 {
-        Err(())
-    } else {
-        Ok(type_.array_type(size as u32))
-    };
-    it.fold(init, |acc, &size| match acc {
-        Ok(ok) => {
-            if size <= 0 {
-                Err(())
-            } else {
-                Ok(ok.array_type(size as u32))
-            }
-        }
-        Err(err) => Err(err),
-    })
+    let init = type_.array_type(size as u32);
+    it.fold(init, |acc, &size| acc.array_type(size as u32))
 }

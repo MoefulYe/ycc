@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use inkwell::values::BasicValueEnum;
 
-pub struct Symbols<'input, 'ctx>(Vec<HashMap<&'input str, BasicValueEnum<'ctx>>>);
+pub struct Scopes<'input, 'ctx>(Vec<HashMap<&'input str, BasicValueEnum<'ctx>>>);
 
-impl<'input, 'ctx> Symbols<'input, 'ctx> {
+impl<'input, 'ctx> Scopes<'input, 'ctx> {
     pub fn new() -> Self {
-        Symbols(vec![])
+        Scopes(vec![])
     }
 
     pub fn enter(&mut self) {

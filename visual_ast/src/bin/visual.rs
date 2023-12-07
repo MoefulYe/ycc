@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{builder::TypedValueParser, Parser};
 use graphviz_rust::{
     cmd::Format,
     exec,
@@ -26,7 +26,7 @@ struct Cli {
     output: Option<PathBuf>,
 }
 
-fn main() {
+fn main() -> miette::Result<()> {
     let args = Cli::parse();
     let Cli { input, output } = args;
     let output = output.unwrap_or_else(|| "output.svg".into());
@@ -41,7 +41,7 @@ fn main() {
         Ok(ast) => {
             let g = draw(&ast);
             let svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])
-                .expect("failed to get svg");
+                .expect("failed to parse svg");
             OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -52,9 +52,10 @@ fn main() {
                 .expect("failed to write output file");
         }
         Err(err) => {
-            let err =
-                err.with_source_code(NamedSource::new(input.to_str().unwrap_or("unknown"), code));
-            eprintln!("{err:?}");
+            return Err(
+                err.with_source_code(NamedSource::new(input.to_str().unwrap_or("unknown"), code))
+            );
         }
     };
+    Ok(())
 }
