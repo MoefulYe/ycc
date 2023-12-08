@@ -7,12 +7,9 @@ use inkwell::{
     types::{FloatType, IntType, VoidType},
 };
 
-use crate::scope::Scopes;
+use crate::scopes::{Scopes, Symbol};
 
-pub struct Compiler<'ctx, 'input>
-where
-    'ctx: 'input,
-{
+pub struct Compiler<'ctx, 'input> {
     ctx: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
@@ -48,34 +45,35 @@ impl<'ctx, 'input> Compiler<'ctx, 'input> {
     pub fn void_type(&'ctx self) -> VoidType<'ctx> {
         self.ctx.void_type()
     }
-}
 
-pub struct ScopedGuard<'a, 'input> {
-    compiler: &'a mut Compiler<'a, 'input>,
-}
-
-impl<'a, 'input> Drop for ScopedGuard<'a, 'input> {
-    fn drop(&mut self) {
-        println!("droped");
+    #[inline]
+    pub fn ctx(&'ctx self) -> &Context {
+        &self.ctx
     }
-}
 
-impl<'a, 'input> Deref for ScopedGuard<'a, 'input> {
-    type Target = Compiler<'a, 'input>;
-
-    fn deref(&self) -> &Self::Target {
-        self.compiler
+    #[inline]
+    pub fn module(&'ctx self) -> &Module<'ctx> {
+        &self.module
     }
-}
 
-impl<'a, 'input> DerefMut for ScopedGuard<'a, 'input> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.compiler
+    #[inline]
+    pub fn builder(&'ctx self) -> &Builder<'ctx> {
+        &self.builder
     }
-}
 
-impl<'a, 'input> ScopedGuard<'a, 'input> {
-    pub fn new(compiler: &'a mut Compiler<'a, 'input>) -> Self {
-        Self { compiler }
+    pub fn scope(&mut self) {
+        self.scopes.enter()
+    }
+
+    pub fn unscope(&mut self) {
+        self.scopes.enter()
+    }
+
+    pub fn symbol(&self, symbol: &str) -> Option<Symbol<'ctx>> {
+        self.scopes.find(symbol)
+    }
+
+    pub fn new_symbol(&mut self, symbol: &'input str, val: Symbol<'ctx>) -> Result<(), ()> {
+        self.scopes.insert(symbol, val)
     }
 }

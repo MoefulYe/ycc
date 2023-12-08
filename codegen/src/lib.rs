@@ -1,8 +1,8 @@
 mod codegen;
 mod compiler;
 mod error;
-pub mod scope;
-mod val;
+pub mod scopes;
+mod value;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
