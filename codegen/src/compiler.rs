@@ -9,14 +9,14 @@ use inkwell::{
 
 use crate::scopes::{Scopes, Symbol};
 
-pub struct Compiler<'ctx, 'input> {
-    ctx: &'ctx Context,
-    module: Module<'ctx>,
-    builder: Builder<'ctx>,
-    scopes: Scopes<'input, 'ctx>,
+pub struct Compiler<'ast, 'ctx> {
+    pub ctx: &'ctx Context,
+    pub module: Module<'ctx>,
+    pub builder: Builder<'ctx>,
+    pub scopes: Scopes<'ast, 'ctx>,
 }
 
-impl<'ctx, 'input> Compiler<'ctx, 'input> {
+impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
     pub fn new(ctx: &'ctx Context, mod_name: &str) -> Self {
         Self {
             ctx,
@@ -47,8 +47,8 @@ impl<'ctx, 'input> Compiler<'ctx, 'input> {
     }
 
     #[inline]
-    pub fn ctx(&'ctx self) -> &Context {
-        &self.ctx
+    pub fn ctx(&'ctx self) -> &'ctx Context {
+        self.ctx
     }
 
     #[inline]
@@ -73,7 +73,11 @@ impl<'ctx, 'input> Compiler<'ctx, 'input> {
         self.scopes.find(symbol)
     }
 
-    pub fn new_symbol(&mut self, symbol: &'input str, val: Symbol<'ctx>) -> Result<(), ()> {
+    pub fn new_symbol(
+        &mut self,
+        symbol: &'ast str,
+        val: impl Into<Symbol<'ctx>>,
+    ) -> Result<(), ()> {
         self.scopes.insert(symbol, val)
     }
 }

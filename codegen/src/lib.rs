@@ -3,6 +3,7 @@ mod compiler;
 mod error;
 pub mod scopes;
 mod value;
+pub mod ty;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

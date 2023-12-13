@@ -1,23 +1,22 @@
+use crate::error::{CodeGenError, Result};
 use ast::{Literal, Loc, PrimType, Sourced, Type};
-use inkwell::types::{AnyType, ArrayType, BasicType, BasicTypeEnum, FloatType, IntType};
+use inkwell::context::Context;
+use inkwell::types::{ArrayType, BasicType, FloatType, IntType};
 use inkwell::values::{ArrayValue, BasicValue, BasicValueEnum};
 
-use crate::compiler::Compiler;
-use crate::error::{CodeGenError, Result};
-
 pub trait TryIntoLLVMValue {
-    fn llvm_value<'input, 'ctx>(
+    fn llvm_value<'ctx>(
         &self,
         ty: &Sourced<Type>,
-        compiler: &'ctx Compiler<'ctx, 'input>,
+        ctx: &'ctx Context,
     ) -> Result<BasicValueEnum<'ctx>>;
 }
 
 impl TryIntoLLVMValue for Sourced<Literal> {
-    fn llvm_value<'input, 'ctx>(
+    fn llvm_value<'ctx>(
         &self,
         (ty_loc, ty): &Sourced<Type>,
-        codegener: &'ctx Compiler<'ctx, 'input>,
+        ctx: &'ctx Context,
     ) -> Result<BasicValueEnum<'ctx>> {
         let (lit_loc, lit) = self;
         match ty {
@@ -25,7 +24,7 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                 ast::PrimType::Void => Err(CodeGenError::IllegalVoid { loc: *ty_loc }),
                 ast::PrimType::Bool => {
                     if let Literal::Bool(val) = lit {
-                        Ok(codegener
+                        Ok(ctx
                             .bool_type()
                             .const_int((*val).into(), false)
                             .as_basic_value_enum())
@@ -40,7 +39,7 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                 }
                 ast::PrimType::Int => {
                     if let Literal::Int(val) = lit {
-                        Ok(codegener
+                        Ok(ctx
                             .i32_type()
                             .const_int(*val as u64, false)
                             .as_basic_value_enum())
@@ -55,7 +54,7 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                 }
                 ast::PrimType::Float => {
                     if let Literal::Float(val) = lit {
-                        Ok(codegener
+                        Ok(ctx
                             .f32_type()
                             .const_float(*val as f64)
                             .as_basic_value_enum())
@@ -74,7 +73,13 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                     if !is_legal(dims) {
                         return Err(CodeGenError::IllegalArraySize { loc: *dims_loc });
                     }
-                    todo!()
+                    let (_, val) = match prim {
+                        PrimType::Void => Err(CodeGenError::IllegalVoid { loc: *prim_loc }),
+                        PrimType::Bool => handle_array_bool(arr, ctx.bool_type(), dims, *prim_loc),
+                        PrimType::Int => handle_array_int(arr, ctx.i32_type(), dims, *prim_loc),
+                        PrimType::Float => handle_array_float(arr, ctx.f32_type(), dims, *prim_loc),
+                    }?;
+                    Ok(val.as_basic_value_enum())
                 } else {
                     Err(CodeGenError::TypeMismatch {
                         expected: ty.as_str(),
@@ -87,19 +92,6 @@ impl TryIntoLLVMValue for Sourced<Literal> {
         }
     }
 }
-//
-// fn handle_array_int<'ctx>(
-//     arr: &[Sourced<Literal>],
-//     prim_loc: Loc,
-//     dims_loc: Loc,
-//     type_: impl BasicType<'ctx>,
-//     dims: &[i32],
-// ) -> Result<BasicValueEnum<'ctx>> {
-//     if dims.iter().any(|&size| size <= 0) {
-//         return Err(CodeGenError::IllegalArraySize { loc: dims_loc });
-//     }
-//     todo!()
-// }
 
 fn handle_array_int<'ctx>(
     arr: &[Sourced<Literal>],

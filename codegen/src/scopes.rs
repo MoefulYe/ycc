@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use inkwell::{
     types::BasicTypeEnum,
-    values::{BasicValueEnum, PointerValue},
+    values::{BasicValue, BasicValueEnum, FloatValue, IntValue, PointerValue},
 };
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Symbol<'ctx> {
@@ -15,11 +14,15 @@ pub enum Symbol<'ctx> {
     },
 }
 
-impl<'ctx> From<(PointerValue<'ctx>, BasicTypeEnum<'ctx>, BasicTypeEnum<'ctx>)> for Symbol<'ctx> {
-    fn from(
-        (addr, ty, origin): (PointerValue<'ctx>, BasicTypeEnum<'ctx>, BasicTypeEnum<'ctx>),
-    ) -> Self {
-        Self::Var { addr, ty, origin }
+impl<'ctx, T: Into<BasicTypeEnum<'ctx>>, U: Into<BasicTypeEnum<'ctx>>>
+    From<(PointerValue<'ctx>, T, U)> for Symbol<'ctx>
+{
+    fn from((addr, ty, origin): (PointerValue<'ctx>, T, U)) -> Self {
+        Self::Var {
+            addr,
+            ty: ty.into(),
+            origin: origin.into(),
+        }
     }
 }
 
@@ -29,7 +32,19 @@ impl<'ctx> From<BasicValueEnum<'ctx>> for Symbol<'ctx> {
     }
 }
 
-pub struct Scopes<'input, 'ctx>(Vec<HashMap<&'input str, Symbol<'ctx>>>);
+impl<'ctx> From<IntValue<'ctx>> for Symbol<'ctx> {
+    fn from(value: IntValue<'ctx>) -> Self {
+        Self::Const(value.as_basic_value_enum().into())
+    }
+}
+
+impl<'ctx> From<FloatValue<'ctx>> for Symbol<'ctx> {
+    fn from(value: FloatValue<'ctx>) -> Self {
+        Self::Const(value.as_basic_value_enum().into())
+    }
+}
+
+pub struct Scopes<'ast, 'ctx>(Vec<HashMap<&'ast str, Symbol<'ctx>>>);
 
 impl<'input, 'ctx> Scopes<'input, 'ctx> {
     pub fn new() -> Self {
@@ -53,9 +68,9 @@ impl<'input, 'ctx> Scopes<'input, 'ctx> {
         None
     }
 
-    pub fn insert(&mut self, name: &'input str, value: Symbol<'ctx>) -> Result<(), ()> {
+    pub fn insert(&mut self, name: &'input str, value: impl Into<Symbol<'ctx>>) -> Result<(), ()> {
         let scope = self.0.last_mut().expect("unreachable");
-        if let Some(_) = scope.insert(name, value) {
+        if let Some(_) = scope.insert(name, value.into()) {
             Err(())
         } else {
             Ok(())

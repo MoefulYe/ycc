@@ -18,20 +18,28 @@ pub enum CodeGenError {
     #[error("void type is not allowed")]
     #[diagnostic(code(CodeGenError::IllegalVoid))]
     IllegalVoid {
-        #[label("void type is not allowed")]
+        #[label("here")]
         loc: Loc,
     },
     #[error("array size must be positive")]
     #[diagnostic(code(CodeGenError::IllegalArraySize))]
     IllegalArraySize {
-        #[label("array size must be positive")]
+        #[label("here")]
         loc: Loc,
     },
     //Excess elements in array initializer
     #[error("excess elements in array initializer")]
     #[diagnostic(code(CodeGenError::ExcessElementsInArrayInitializer))]
     ExcessElementsInArrayInitializer {
-        #[label("excess elements in array initializer")]
+        #[label("here")]
         loc: Loc,
+    },
+    //重复的标识符
+    #[error("duplicate identifier`{ident}`")]
+    #[diagnostic(code(CodeGenError::DuplicateIdentifier))]
+    DuplicateIdentifier {
+        #[label("here")]
+        loc: Loc,
+        ident: String,
     },
 }
