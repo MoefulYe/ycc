@@ -11,7 +11,7 @@ use ast::{
 use inkwell::{
     types::BasicType,
     values::{BasicValue, BasicValueEnum, FunctionValue},
-    AddressSpace,
+    AddressSpace, IntPredicate,
 };
 
 pub trait CodeGen<'ast, 'ctx> {
@@ -336,10 +336,20 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unary<'ast>> {
                 }),
             },
             UnaryOp::Not => match rhs.codegen(compiler)? {
-                BasicValueEnum::IntValue(val) => Ok(compiler
-                    .builder
-                    .build_not(val, "int_not")
-                    .as_basic_value_enum()),
+                BasicValueEnum::IntValue(val) => {
+                    if val.get_type().get_bit_width() == 1 {
+                        Ok(compiler
+                            .builder
+                            .build_not(val, "bool_not")
+                            .as_basic_value_enum())
+                    } else {
+                        Err(CodeGenError::IllegalUnaryOperator {
+                            loc: op_loc.to_owned(),
+                            op: op.to_string(),
+                            ty: "int".to_owned(),
+                        })
+                    }
+                }
                 val => Err(CodeGenError::IllegalUnaryOperator {
                     loc: op_loc.to_owned(),
                     op: op.to_string(),
@@ -347,7 +357,10 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unary<'ast>> {
                 }),
             },
             UnaryOp::BitNot => match rhs.codegen(compiler)? {
-                BasicValueEnum::IntValue(val) => Ok(compiler.builder.),
+                BasicValueEnum::IntValue(val) => Ok(compiler
+                    .builder
+                    .build_not(val, "int_bnot")
+                    .as_basic_value_enum()),
                 val => Err(CodeGenError::IllegalUnaryOperator {
                     loc: op_loc.to_owned(),
                     op: op.to_string(),
@@ -362,6 +375,145 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
     type Out = BasicValueEnum<'ctx>;
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        let (
+            loc,
+            Binary {
+                op: (op_loc, op),
+                lhs,
+                rhs,
+            },
+        ) = self;
+        let lhs_loc = lhs.0;
+        let rhs_loc = rhs.0;
+        match (lhs.codegen(compiler)?, rhs.codegen(compiler)?) {
+            (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => match op {
+                ast::BinaryOp::LogicalOr => {
+                    if lhs.get_type().get_bit_width() == 1 && rhs.get_type().get_bit_width() == 1 {
+                        Ok(compiler
+                            .builder
+                            .build_or(lhs, rhs, "bool_or")
+                            .as_basic_value_enum())
+                    } else {
+                        Err(CodeGenError::IllegalBinaryOperator {
+                            loc_lhs: lhs_loc.to_owned(),
+                            loc_rhs: rhs_loc.to_owned(),
+                            loc_op: op_loc.to_owned(),
+                            op: op.to_string(),
+                            lhs: "int".to_owned(),
+                            rhs: "int".to_owned(),
+                        })
+                    }
+                }
+                ast::BinaryOp::LogicalAnd => {
+                    if lhs.get_type().get_bit_width() == 1 && rhs.get_type().get_bit_width() == 1 {
+                        Ok(compiler
+                            .builder
+                            .build_and(lhs, rhs, "bool_and")
+                            .as_basic_value_enum())
+                    } else {
+                        Err(CodeGenError::IllegalBinaryOperator {
+                            loc_lhs: lhs_loc.to_owned(),
+                            loc_rhs: rhs_loc.to_owned(),
+                            loc_op: op_loc.to_owned(),
+                            op: op.to_string(),
+                            lhs: "int".to_owned(),
+                            rhs: "int".to_owned(),
+                        })
+                    }
+                }
+                ast::BinaryOp::BitOr => Ok(compiler
+                    .builder
+                    .build_or(lhs, rhs, "int_or")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::BitXor => Ok(compiler
+                    .builder
+                    .build_xor(lhs, rhs, "int_xor")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::BitAnd => Ok(compiler
+                    .builder
+                    .build_and(lhs, rhs, "int_and")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Eq => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::EQ, lhs, rhs, "int_eq")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Ne => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::NE, lhs, rhs, "int_ne")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Lt => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::SLT, lhs, rhs, "int_lt")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Gt => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::SGT, lhs, rhs, "int_gt")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Le => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::SLE, lhs, rhs, "int_le")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Ge => Ok(compiler
+                    .builder
+                    .build_int_compare(IntPredicate::SGE, lhs, rhs, "int_ge")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Shl => Ok(compiler
+                    .builder
+                    .build_left_shift(lhs, rhs, "int_shl")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Shr => Ok(compiler
+                    .builder
+                    .build_right_shift(lhs, rhs, false, "int_shr")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Add => Ok(compiler
+                    .builder
+                    .build_int_add(lhs, rhs, "int_add")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Sub => Ok(compiler
+                    .builder
+                    .build_int_sub(lhs, rhs, "int_sub")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Mul => Ok(compiler
+                    .builder
+                    .build_int_mul(lhs, rhs, "int_mul")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Div => Ok(compiler
+                    .builder
+                    .build_int_signed_div(lhs, rhs, "int_div")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Mod => Ok(compiler
+                    .builder
+                    .build_int_signed_rem(lhs, rhs, "int_mod")
+                    .as_basic_value_enum()),
+            },
+            (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => match op {
+                ast::BinaryOp::Eq => todo!(),
+                ast::BinaryOp::Ne => todo!(),
+                ast::BinaryOp::Lt => todo!(),
+                ast::BinaryOp::Gt => todo!(),
+                ast::BinaryOp::Le => todo!(),
+                ast::BinaryOp::Ge => todo!(),
+                ast::BinaryOp::Add => todo!(),
+                ast::BinaryOp::Sub => todo!(),
+                ast::BinaryOp::Mul => todo!(),
+                ast::BinaryOp::Div => todo!(),
+                op => Err(CodeGenError::IllegalBinaryOperator {
+                    loc_lhs: lhs_loc.to_owned(),
+                    loc_rhs: rhs_loc.to_owned(),
+                    loc_op: op_loc.to_owned(),
+                    op: op.to_string(),
+                    lhs: "float".to_owned(),
+                    rhs: "float".to_owned(),
+                }),
+            },
+            (lhs, rhs) => Err(CodeGenError::IllegalBinaryOperator {
+                loc_lhs: lhs_loc.to_owned(),
+                loc_rhs: rhs_loc.to_owned(),
+                loc_op: op_loc.to_owned(),
+                op: op.to_string(),
+                lhs: lhs.get_type().to_string(),
+                rhs: rhs.get_type().to_string(),
+            }),
+        }
     }
 }

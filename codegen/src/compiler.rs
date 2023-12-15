@@ -92,8 +92,8 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         self.scopes.insert(symbol, val)
     }
 
-    pub fn codegen(&mut self, ast: &'ast ast::Module<'ast>) -> Result<()> {
-        ast.codegen(self)
+    pub fn codegen(&mut self, ast: &'ast ast::Module<'ast>) -> Result<(), miette::Report> {
+        ast.codegen(self).map_err(|err| err.into())
     }
 
     pub fn guard<'guard>(&'guard mut self) -> ScopedGuard<'guard, 'ast, 'ctx> {

@@ -83,4 +83,17 @@ pub enum CodeGenError {
         op: String,
         ty: String,
     },
+    #[error("illegal binary operator `{op}` for type `{lhs}` and `{rhs}`")]
+    #[diagnostic(code(CodeGenError::IllegalBinaryOperator))]
+    IllegalBinaryOperator {
+        #[label("the type of lhs is `{lhs}`")]
+        loc_lhs: Loc,
+        #[label("the type of rhs is `{rhs}`")]
+        loc_rhs: Loc,
+        #[label("`{op}` is illegal for type `{lhs}` and `{rhs}`")]
+        loc_op: Loc,
+        op: String,
+        lhs: String,
+        rhs: String,
+    },
 }
