@@ -5,12 +5,12 @@ use crate::{
     val::TryIntoLLVMValue,
 };
 use ast::{
-    AssignStmt, Block, ConstDecl, FuncDef, FuncParam, FuncProto, GlobalVarDecl, IfStmt, Module,
-    Sourced, Stmt, Unit, VarDecl, WhileStmt,
+    AssignStmt, Binary, Block, ConstDecl, Expr, FuncDef, FuncParam, FuncProto, GlobalVarDecl,
+    IfStmt, Module, PrimExpr, Sourced, Stmt, Unary, UnaryOp, Unit, VarDecl, WhileStmt,
 };
 use inkwell::{
     types::BasicType,
-    values::{BasicValue, FunctionValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue},
     AddressSpace,
 };
 
@@ -272,6 +272,94 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
 
 impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
     type Out = ();
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        todo!()
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Expr<'ast>> {
+    type Out = BasicValueEnum<'ctx>;
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        let (_, this) = self;
+        match this {
+            Expr::Prim(expr) => expr.codegen(compiler),
+            Expr::Unary(expr) => expr.codegen(compiler),
+            Expr::Binary(expr) => expr.codegen(compiler),
+        }
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<PrimExpr<'ast>> {
+    type Out = BasicValueEnum<'ctx>;
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        todo!()
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unary<'ast>> {
+    type Out = BasicValueEnum<'ctx>;
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        let (
+            loc,
+            Unary {
+                op: (op_loc, op),
+                rhs,
+            },
+        ) = self;
+        match op {
+            UnaryOp::Pos => match rhs.codegen(compiler)? {
+                BasicValueEnum::IntValue(val) => Ok(val.as_basic_value_enum()),
+                BasicValueEnum::FloatValue(val) => Ok(val.as_basic_value_enum()),
+                val => Err(CodeGenError::IllegalUnaryOperator {
+                    loc: op_loc.to_owned(),
+                    op: op.to_string(),
+                    ty: val.get_type().to_string(),
+                }),
+            },
+            UnaryOp::Neg => match rhs.codegen(compiler)? {
+                BasicValueEnum::IntValue(val) => Ok(compiler
+                    .builder
+                    .build_int_neg(val, "int_neg")
+                    .as_basic_value_enum()),
+                BasicValueEnum::FloatValue(val) => Ok(compiler
+                    .builder
+                    .build_float_neg(val, "float_neg")
+                    .as_basic_value_enum()),
+                val => Err(CodeGenError::IllegalUnaryOperator {
+                    loc: op_loc.to_owned(),
+                    op: op.to_string(),
+                    ty: val.get_type().to_string(),
+                }),
+            },
+            UnaryOp::Not => match rhs.codegen(compiler)? {
+                BasicValueEnum::IntValue(val) => Ok(compiler
+                    .builder
+                    .build_not(val, "int_not")
+                    .as_basic_value_enum()),
+                val => Err(CodeGenError::IllegalUnaryOperator {
+                    loc: op_loc.to_owned(),
+                    op: op.to_string(),
+                    ty: val.get_type().to_string(),
+                }),
+            },
+            UnaryOp::BitNot => match rhs.codegen(compiler)? {
+                BasicValueEnum::IntValue(val) => Ok(compiler.builder.),
+                val => Err(CodeGenError::IllegalUnaryOperator {
+                    loc: op_loc.to_owned(),
+                    op: op.to_string(),
+                    ty: val.get_type().to_string(),
+                }),
+            },
+        }
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
+    type Out = BasicValueEnum<'ctx>;
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         todo!()

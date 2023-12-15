@@ -75,4 +75,12 @@ pub enum CodeGenError {
         #[label("here")]
         loc: Loc,
     },
+    #[error("illegal unary operator `{op}` for type `{ty}`")]
+    #[diagnostic(code(CodeGenError::IllegalUnaryOperator))]
+    IllegalUnaryOperator {
+        #[label("`{op}` is illegal for type `{ty}`")]
+        loc: Loc,
+        op: String,
+        ty: String,
+    },
 }
