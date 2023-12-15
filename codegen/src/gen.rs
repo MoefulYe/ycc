@@ -11,7 +11,7 @@ use ast::{
 use inkwell::{
     types::BasicType,
     values::{BasicValue, BasicValueEnum, FunctionValue},
-    AddressSpace, IntPredicate,
+    AddressSpace, FloatPredicate, IntPredicate,
 };
 
 pub trait CodeGen<'ast, 'ctx> {
@@ -304,7 +304,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unary<'ast>> {
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         let (
-            loc,
+            _,
             Unary {
                 op: (op_loc, op),
                 rhs,
@@ -376,7 +376,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         let (
-            loc,
+            _,
             Binary {
                 op: (op_loc, op),
                 lhs,
@@ -487,16 +487,50 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
                     .as_basic_value_enum()),
             },
             (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => match op {
-                ast::BinaryOp::Eq => todo!(),
-                ast::BinaryOp::Ne => todo!(),
-                ast::BinaryOp::Lt => todo!(),
-                ast::BinaryOp::Gt => todo!(),
-                ast::BinaryOp::Le => todo!(),
-                ast::BinaryOp::Ge => todo!(),
-                ast::BinaryOp::Add => todo!(),
-                ast::BinaryOp::Sub => todo!(),
-                ast::BinaryOp::Mul => todo!(),
-                ast::BinaryOp::Div => todo!(),
+                ast::BinaryOp::Eq => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::OEQ, lhs, rhs, "float_eq")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Ne => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::ONE, lhs, rhs, "float_ne")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Lt => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::OLT, lhs, rhs, "float_lt")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Gt => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::OGT, lhs, rhs, "float_gt")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Le => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::OLE, lhs, rhs, "float_le")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Ge => Ok(compiler
+                    .builder
+                    .build_float_compare(FloatPredicate::OGE, lhs, rhs, "float_ge")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Add => Ok(compiler
+                    .builder
+                    .build_float_add(lhs, rhs, "float_add")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Sub => Ok(compiler
+                    .builder
+                    .build_float_sub(lhs, rhs, "float_sub")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Mul => Ok(compiler
+                    .builder
+                    .build_float_mul(lhs, rhs, "float_mul")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Div => Ok(compiler
+                    .builder
+                    .build_float_div(lhs, rhs, "float_div")
+                    .as_basic_value_enum()),
+                ast::BinaryOp::Mod => Ok(compiler
+                    .builder
+                    .build_float_rem(lhs, rhs, "float_mod")
+                    .as_basic_value_enum()),
                 op => Err(CodeGenError::IllegalBinaryOperator {
                     loc_lhs: lhs_loc.to_owned(),
                     loc_rhs: rhs_loc.to_owned(),
