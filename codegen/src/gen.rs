@@ -295,7 +295,12 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<PrimExpr<'ast>> {
     type Out = BasicValueEnum<'ctx>;
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        match &self.1 {
+            PrimExpr::LValue(lval) => todo!(),
+            PrimExpr::Literal(lit) => todo!(),
+            PrimExpr::Paren(inner) => inner.codegen(compiler),
+            PrimExpr::Call(_, _) => todo!(),
+        }
     }
 }
 

@@ -27,14 +27,12 @@ pub enum CodeGenError {
         #[label("here")]
         loc: Loc,
     },
-    //Excess elements in array initializer
     #[error("excess elements in array initializer")]
     #[diagnostic(code(CodeGenError::ExcessElementsInArrayInitializer))]
     ExcessElementsInArrayInitializer {
         #[label("here")]
         loc: Loc,
     },
-    //重复的标识符
     #[error("duplicate identifier `{ident}`")]
     #[diagnostic(code(CodeGenError::DuplicateIdentifier))]
     DuplicateIdentifier {
@@ -95,5 +93,12 @@ pub enum CodeGenError {
         op: String,
         lhs: String,
         rhs: String,
+    },
+    #[error("unresolved identifier `{ident}`")]
+    #[diagnostic(code(CodeGenError::UnresolvedIdentifier))]
+    UnresolvedIdentifier {
+        #[label("`{ident}` is undefined before here")]
+        loc: Loc,
+        ident: String,
     },
 }
