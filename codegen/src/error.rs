@@ -49,4 +49,11 @@ pub enum CodeGenError {
         loc: Loc,
         ident: String,
     },
+    #[error("coflicting declaration for `{ident}`")]
+    #[diagnostic(code(CodeGenError::ConflictingDeclaration))]
+    ConflictingDeclaration {
+        #[label("here")]
+        loc: Loc,
+        ident: String,
+    },
 }

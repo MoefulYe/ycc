@@ -1,5 +1,6 @@
 use crate::error::Result;
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
@@ -12,11 +13,17 @@ use crate::{
     scopes::{Scopes, Symbol},
 };
 
+pub struct Loop<'ctx> {
+    pub head: BasicBlock<'ctx>,
+    pub after: BasicBlock<'ctx>,
+}
+
 pub struct Compiler<'ast, 'ctx> {
     pub ctx: &'ctx Context,
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
     pub scopes: Scopes<'ast, 'ctx>,
+    pub loops: Vec<Loop<'ctx>>,
 }
 
 impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
@@ -26,6 +33,7 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
             module: ctx.create_module(mod_name),
             builder: ctx.create_builder(),
             scopes: Scopes::new(),
+            loops: vec![],
         }
     }
 
@@ -112,7 +120,7 @@ impl<'compiler, 'ast, 'ctx> Deref for ScopedGuard<'compiler, 'ast, 'ctx> {
 }
 
 impl<'compiler, 'ast, 'ctx> ScopedGuard<'compiler, 'ast, 'ctx> {
-    fn new(compiler: &'compiler mut Compiler<'ast, 'ctx>) -> Self {
+    pub fn new(compiler: &'compiler mut Compiler<'ast, 'ctx>) -> Self {
         compiler.scopes.enter();
         Self(compiler)
     }

@@ -1,5 +1,5 @@
 use crate::{
-    compiler::Compiler,
+    compiler::{Compiler, ScopedGuard},
     error::{CodeGenError, Result},
     ty::{TryIntoFuncType, TryIntoLLVMType},
     val::TryIntoLLVMValue,
@@ -135,6 +135,26 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         let (_, this) = self;
         let FuncDef { proto, body } = this;
+        let ident = proto.1.ident.1;
+        let func = match compiler.module.get_function(ident) {
+            Some(func) => {
+                if func.get_type() != proto.fn_type(compiler.ctx)? {
+                    return Err(CodeGenError::ConflictingDeclaration {
+                        loc: proto.1.ident.0,
+                        ident: ident.to_owned(),
+                    });
+                } else {
+                    func
+                }
+            }
+            None => {
+                let fn_type = proto.fn_type(compiler.ctx)?;
+                compiler.module.add_function(ident, fn_type, None)
+            }
+        };
+        let compiler = ScopedGuard::new(compiler);
+        let entry = compiler.ctx.append_basic_block(func, "entry");
+        compiler.builder.position_at_end(entry);
         Ok(())
     }
 }

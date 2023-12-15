@@ -23,6 +23,9 @@ mod tests {
         let ast = parse(
             r##"
             int add(int a, float b[]);
+            int add(int a, float b[]) {
+                return 1;
+            }
               "##,
         )
         .unwrap();
