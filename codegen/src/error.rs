@@ -56,4 +56,23 @@ pub enum CodeGenError {
         loc: Loc,
         ident: String,
     },
+    #[error("verify function `{ident}` failed")]
+    #[diagnostic(code(CodeGenError::VerifyFunction))]
+    VerifyFunction {
+        #[label("here")]
+        loc: Loc,
+        ident: String,
+    },
+    #[error("break outside loop")]
+    #[diagnostic(code(CodeGenError::BreakOutsideLoop))]
+    BreakOutsideLoop {
+        #[label("here")]
+        loc: Loc,
+    },
+    #[error("continue outside loop")]
+    #[diagnostic(code(CodeGenError::ContinueOutsideLoop))]
+    ContinueOutsideLoop {
+        #[label("here")]
+        loc: Loc,
+    },
 }

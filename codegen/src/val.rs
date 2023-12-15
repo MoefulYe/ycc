@@ -1,7 +1,9 @@
 use crate::error::{CodeGenError, Result};
+use crate::ty::illegal;
+use crate::ty::ndim_arr_of;
 use ast::{Literal, Loc, PrimType, Sourced, Type};
 use inkwell::context::Context;
-use inkwell::types::{ArrayType, BasicType, FloatType, IntType};
+use inkwell::types::{ArrayType, FloatType, IntType};
 use inkwell::values::{ArrayValue, BasicValue, BasicValueEnum};
 
 pub trait TryIntoLLVMValue {
@@ -70,7 +72,7 @@ impl TryIntoLLVMValue for Sourced<Literal> {
             },
             Type::Array((prim_loc, prim), (dims_loc, dims)) => {
                 if let Literal::List(arr) = lit {
-                    if !is_legal(dims) {
+                    if illegal(dims) {
                         return Err(CodeGenError::IllegalArraySize { loc: *dims_loc });
                     }
                     let (_, val) = match prim {
@@ -352,16 +354,4 @@ fn handle_array_float<'ctx>(
             Ok((ty, val))
         }
     }
-}
-
-fn is_legal(dims: &[i32]) -> bool {
-    dims.iter().all(|&dim| dim > 0)
-}
-
-//caller must guarantee that dims is not empty and size > 0
-fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
-    let mut it = dims.iter().rev();
-    let &size = it.next().unwrap();
-    let init = type_.array_type(size as u32);
-    it.fold(init, |acc, &size| acc.array_type(size as u32))
 }

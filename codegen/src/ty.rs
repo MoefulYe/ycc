@@ -2,7 +2,7 @@ use crate::error::{CodeGenError, Result};
 use ast::{FuncParam, FuncProto, Sourced};
 use inkwell::{
     context::Context,
-    types::{AnyType, ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     AddressSpace,
 };
 
@@ -15,7 +15,7 @@ impl TryIntoLLVMType for Sourced<ast::Type> {
         match &self.1 {
             ast::Type::Prim(ty) => ty.llvm_type(ctx),
             ast::Type::Array(prim, (dims_loc, dims)) => {
-                if dims.iter().any(|&dim| dim < 0) {
+                if illegal(dims) {
                     return Err(CodeGenError::IllegalArraySize {
                         loc: dims_loc.to_owned(),
                     });
@@ -41,7 +41,7 @@ impl TryIntoLLVMType for Sourced<ast::PrimType> {
     }
 }
 
-fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
+pub fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
     let mut it = dims.iter().rev();
     let &size = it.next().unwrap();
     let init = type_.array_type(size as u32);
@@ -76,9 +76,17 @@ impl<'ast> TryIntoFuncType for Sourced<ast::FuncProto<'ast>> {
                             ast::Type::Prim(prim) => {
                                 BasicMetadataTypeEnum::from(prim.llvm_type(ctx)?)
                             }
-                            ast::Type::Array(prim, _) => BasicMetadataTypeEnum::from(
-                                prim.llvm_type(ctx)?.ptr_type(AddressSpace::default()),
-                            ),
+                            ast::Type::Array(prim, (dims_loc, dims)) => {
+                                if illegal(dims) {
+                                    return Err(CodeGenError::IllegalArraySize {
+                                        loc: dims_loc.to_owned(),
+                                    });
+                                } else {
+                                    BasicMetadataTypeEnum::from(
+                                        prim.llvm_type(ctx)?.ptr_type(AddressSpace::default()),
+                                    )
+                                }
+                            }
                         };
                         ok.push(ty);
                         Ok(ok)
@@ -95,4 +103,8 @@ impl<'ast> TryIntoFuncType for Sourced<ast::FuncProto<'ast>> {
         };
         Ok(fn_type)
     }
+}
+
+pub fn illegal(dims: &[i32]) -> bool {
+    dims.iter().any(|&dim| dim <= 0)
 }

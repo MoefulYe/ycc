@@ -95,6 +95,10 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
     pub fn codegen(&mut self, ast: &'ast ast::Module<'ast>) -> Result<()> {
         ast.codegen(self)
     }
+
+    pub fn guard<'guard>(&'guard mut self) -> ScopedGuard<'guard, 'ast, 'ctx> {
+        ScopedGuard::new(self)
+    }
 }
 
 pub struct ScopedGuard<'compiler, 'ast, 'ctx>(&'compiler mut Compiler<'ast, 'ctx>);

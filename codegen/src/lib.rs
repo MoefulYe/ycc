@@ -12,6 +12,7 @@ pub fn add(left: usize, right: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use inkwell::context::Context;
+    use miette::{ErrReport, NamedSource};
     use parser::parse;
 
     use crate::compiler::Compiler;
@@ -20,19 +21,15 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let ast = parse(
-            r##"
-            int add(int a, float b[]);
-            int add(int a, float b[]) {
+        let code = r##"
+            int add(int a, float b, bool c, int d[2]) {
                 return 1;
             }
-              "##,
-        )
-        .unwrap();
+              "##;
+        let ast = parse(code).unwrap();
         let ctx = Context::create();
         let mut compiler = Compiler::new(&ctx, "test");
-        compiler.codegen(&ast).unwrap();
-        let s = compiler.module.print_to_string().to_string();
-        println!("{s}");
+        let err: miette::Report = compiler.codegen(&ast).unwrap_err().into();
+        println!("{:?}", err.with_source_code(NamedSource::new("test", code)));
     }
 }
