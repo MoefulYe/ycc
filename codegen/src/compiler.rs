@@ -1,13 +1,16 @@
-use std::ops::{Deref, DerefMut};
-
+use crate::error::Result;
 use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
     types::{FloatType, IntType, VoidType},
 };
+use std::ops::{Deref, DerefMut};
 
-use crate::scopes::{Scopes, Symbol};
+use crate::{
+    gen::CodeGen,
+    scopes::{Scopes, Symbol},
+};
 
 pub struct Compiler<'ast, 'ctx> {
     pub ctx: &'ctx Context,
@@ -79,5 +82,38 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         val: impl Into<Symbol<'ctx>>,
     ) -> Result<(), ()> {
         self.scopes.insert(symbol, val)
+    }
+
+    pub fn codegen(&mut self, ast: &'ast ast::Module<'ast>) -> Result<()> {
+        ast.codegen(self)
+    }
+}
+
+pub struct ScopedGuard<'compiler, 'ast, 'ctx>(&'compiler mut Compiler<'ast, 'ctx>);
+
+impl<'compiler, 'ast, 'ctx> Drop for ScopedGuard<'compiler, 'ast, 'ctx> {
+    fn drop(&mut self) {
+        self.scopes.exit();
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> DerefMut for ScopedGuard<'compiler, 'ast, 'ctx> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> Deref for ScopedGuard<'compiler, 'ast, 'ctx> {
+    type Target = Compiler<'ast, 'ctx>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> ScopedGuard<'compiler, 'ast, 'ctx> {
+    fn new(compiler: &'compiler mut Compiler<'ast, 'ctx>) -> Self {
+        compiler.scopes.enter();
+        Self(compiler)
     }
 }

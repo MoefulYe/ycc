@@ -35,9 +35,16 @@ pub enum CodeGenError {
         loc: Loc,
     },
     //重复的标识符
-    #[error("duplicate identifier`{ident}`")]
+    #[error("duplicate identifier `{ident}`")]
     #[diagnostic(code(CodeGenError::DuplicateIdentifier))]
     DuplicateIdentifier {
+        #[label("here")]
+        loc: Loc,
+        ident: String,
+    },
+    #[error("redefined function `{ident}`")]
+    #[diagnostic(code(CodeGenError::RedefinedFunction))]
+    RedefinedFunction {
         #[label("here")]
         loc: Loc,
         ident: String,

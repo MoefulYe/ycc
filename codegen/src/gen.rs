@@ -1,11 +1,14 @@
 use crate::{
     compiler::Compiler,
     error::{CodeGenError, Result},
-    ty::TryIntoLLVMType,
-    value::TryIntoLLVMValue,
+    ty::{TryIntoFuncType, TryIntoLLVMType},
+    val::TryIntoLLVMValue,
 };
 use ast::{ConstDecl, FuncDef, FuncProto, GlobalVarDecl, Module, Sourced, Unit};
-use inkwell::{values::BasicValue, AddressSpace};
+use inkwell::{
+    values::{BasicValue, FunctionValue},
+    AddressSpace,
+};
 
 pub trait CodeGen<'ast, 'ctx> {
     type Out;
@@ -13,11 +16,11 @@ pub trait CodeGen<'ast, 'ctx> {
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out>;
 }
 
-impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Module<'ast>> {
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Module<'ast> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        let Module(units) = &self.1;
+        let Module(units) = self;
         for unit in units {
             unit.codegen(compiler)?
         }
@@ -32,7 +35,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unit<'ast>> {
         match &self.1 {
             Unit::ConstDecl(unit) => unit.codegen(compiler),
             Unit::GlobalVarDecl(unit) => unit.codegen(compiler),
-            Unit::FuncDecl(unit) => unit.codegen(compiler),
+            Unit::FuncDecl(unit) => unit.codegen(compiler).map(|_| ()),
             Unit::FuncDef(unit) => unit.codegen(compiler),
         }
     }
@@ -82,8 +85,16 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<GlobalVarDecl<'ast>> {
         match init {
             Some(init) => {
                 let val = init.llvm_value(ty, compiler.ctx)?;
-                let global = compiler.module.add_global(val.get_type(), None, ident);
-                Ok(())
+                let ty = val.get_type();
+                let global = compiler.module.add_global(ty, None, ident);
+                global.set_initializer(&val);
+                compiler
+                    .scopes
+                    .insert(ident, (global.as_pointer_value(), ty, ty))
+                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                        loc: loc.to_owned(),
+                        ident: ident.to_string(),
+                    })
             }
             None => {
                 let ty = ty.llvm_type(compiler.ctx)?;
@@ -101,10 +112,20 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<GlobalVarDecl<'ast>> {
 }
 
 impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncProto<'ast>> {
-    type Out = ();
+    type Out = FunctionValue<'ctx>;
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        match compiler.module.get_function(self.1.ident.1) {
+            Some(_) => Err(CodeGenError::RedefinedFunction {
+                loc: self.1.ident.0,
+                ident: self.1.ident.1.to_string(),
+            }),
+            None => {
+                let ident = self.1.ident.1;
+                let fn_type = self.fn_type(compiler.ctx)?;
+                Ok(compiler.module.add_function(ident, fn_type, None))
+            }
+        }
     }
 }
 
@@ -112,6 +133,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        let (_, this) = self;
+        let FuncDef { proto, body } = this;
+        Ok(())
     }
 }

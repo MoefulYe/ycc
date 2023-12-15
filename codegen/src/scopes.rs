@@ -44,6 +44,7 @@ impl<'ctx> From<FloatValue<'ctx>> for Symbol<'ctx> {
     }
 }
 
+#[derive(Debug)]
 pub struct Scopes<'ast, 'ctx>(Vec<HashMap<&'ast str, Symbol<'ctx>>>);
 
 impl<'input, 'ctx> Scopes<'input, 'ctx> {
