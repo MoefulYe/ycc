@@ -64,13 +64,13 @@ pub enum CodeGenError {
     #[error("break outside loop")]
     #[diagnostic(code(CodeGenError::BreakOutsideLoop))]
     BreakOutsideLoop {
-        #[label("here")]
+        #[label("unexpected `break`")]
         loc: Loc,
     },
     #[error("continue outside loop")]
     #[diagnostic(code(CodeGenError::ContinueOutsideLoop))]
     ContinueOutsideLoop {
-        #[label("here")]
+        #[label("unexpected `continue`")]
         loc: Loc,
     },
     #[error("illegal unary operator `{op}` for type `{ty}`")]
@@ -100,5 +100,31 @@ pub enum CodeGenError {
         #[label("`{ident}` is undefined before here")]
         loc: Loc,
         ident: String,
+    },
+    #[error("unimplemented")]
+    #[diagnostic(code(CodeGenError::Unimplemented))]
+    Unimplemented {
+        #[label("unimplemented")]
+        loc: Loc,
+    },
+    #[error("unresolved function `{ident}`")]
+    #[diagnostic(code(CodeGenError::UnresolvedFunction))]
+    UnresolvedFunction {
+        #[label("`{ident}` is undefined before here")]
+        loc: Loc,
+        ident: String,
+    },
+    #[error("illegal array initializer used")]
+    #[diagnostic(code(CodeGenError::IllegalArrayInitializer))]
+    IllegalArrayInitializer {
+        #[label("illegal array initializer used")]
+        loc: Loc,
+    },
+    #[error("illegal index access for type `{ty}`")]
+    #[diagnostic(code(CodeGenError::IllegalIndexAccess))]
+    IllegalIndexAccess {
+        #[label("illegal index access for type `{ty}`")]
+        loc: Loc,
+        ty: String,
     },
 }

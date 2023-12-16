@@ -9,8 +9,8 @@ pub enum Symbol<'ctx> {
     Const(BasicValueEnum<'ctx>),
     Var {
         addr: PointerValue<'ctx>,
-        ty: BasicTypeEnum<'ctx>,
-        origin: BasicTypeEnum<'ctx>,
+        llvm_ty: BasicTypeEnum<'ctx>,
+        origin_ty: BasicTypeEnum<'ctx>,
     },
 }
 
@@ -20,8 +20,8 @@ impl<'ctx, T: Into<BasicTypeEnum<'ctx>>, U: Into<BasicTypeEnum<'ctx>>>
     fn from((addr, ty, origin): (PointerValue<'ctx>, T, U)) -> Self {
         Self::Var {
             addr,
-            ty: ty.into(),
-            origin: origin.into(),
+            llvm_ty: ty.into(),
+            origin_ty: origin.into(),
         }
     }
 }

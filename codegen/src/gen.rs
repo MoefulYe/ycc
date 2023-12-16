@@ -1,16 +1,16 @@
 use crate::{
-    compiler::{Compiler, ScopedGuard},
+    compiler::Compiler,
     error::{CodeGenError, Result},
     ty::{ndim_arr_of, TryIntoFuncType, TryIntoLLVMType},
     val::TryIntoLLVMValue,
 };
 use ast::{
-    AssignStmt, Binary, Block, ConstDecl, Expr, FuncDef, FuncParam, FuncProto, GlobalVarDecl,
-    IfStmt, Module, PrimExpr, Sourced, Stmt, Unary, UnaryOp, Unit, VarDecl, WhileStmt,
+    AssignStmt, Binary, Block, ConstDecl, Expr, FuncDef, FuncProto, GlobalVarDecl, IfStmt, LValue,
+    Literal, Module, PrimExpr, Sourced, Stmt, Unary, UnaryOp, Unit, VarDecl, WhileStmt,
 };
 use inkwell::{
     types::BasicType,
-    values::{BasicValue, BasicValueEnum, FunctionValue},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue},
     AddressSpace, FloatPredicate, IntPredicate,
 };
 
@@ -160,8 +160,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
         let entry = compiler.ctx.append_basic_block(func, "entry");
         compiler.builder.position_at_end(entry);
 
-        for (idx, (loc, param)) in proto.1.params.1.iter().enumerate() {
-            let (ty_loc, ty) = &param.ty;
+        for (idx, (_, param)) in proto.1.params.1.iter().enumerate() {
+            let (_, ty) = &param.ty;
             let (ident_loc, ident) = &param.ident;
             let (llvm_ty, origin_ty) = match ty {
                 ast::Type::Prim(prim) => {
@@ -296,10 +296,110 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<PrimExpr<'ast>> {
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         match &self.1 {
-            PrimExpr::LValue(lval) => todo!(),
-            PrimExpr::Literal(lit) => todo!(),
+            PrimExpr::LValue(lval) => lval.codegen(compiler),
+            PrimExpr::Literal(lit) => lit.codegen(compiler),
             PrimExpr::Paren(inner) => inner.codegen(compiler),
-            PrimExpr::Call(_, _) => todo!(),
+            PrimExpr::Call(name, args) => {
+                let func = compiler.module.get_function(name.1).ok_or_else(|| {
+                    CodeGenError::UnresolvedFunction {
+                        loc: name.0,
+                        ident: name.1.to_owned(),
+                    }
+                })?;
+                let args = args.1.iter().try_fold(vec![], |mut acc, arg| {
+                    let arg = arg.codegen(compiler)?;
+                    acc.push(BasicMetadataValueEnum::from(arg));
+                    Ok(acc)
+                })?;
+                Ok(compiler
+                    .builder
+                    .build_call(func, &args, "call")
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap_or(compiler.ctx.i32_type().const_zero().as_basic_value_enum()))
+            }
+        }
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
+    type Out = BasicValueEnum<'ctx>;
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        match &self.1 {
+            LValue::Ident((loc, ident)) => {
+                let symbol = compiler.scopes.find(ident).ok_or_else(|| {
+                    CodeGenError::UnresolvedIdentifier {
+                        loc: loc.to_owned(),
+                        ident: ident.to_string(),
+                    }
+                })?;
+                match symbol {
+                    crate::scopes::Symbol::Const(val) => {
+                        if val.is_array_value() {
+                            Err(CodeGenError::IllegalArrayInitializer {
+                                loc: loc.to_owned(),
+                            })
+                        } else {
+                            Ok(val)
+                        }
+                    }
+                    crate::scopes::Symbol::Var {
+                        addr,
+                        llvm_ty: _,
+                        origin_ty,
+                    } => {
+                        if origin_ty.is_array_type() {
+                            Err(CodeGenError::IllegalArrayInitializer {
+                                loc: loc.to_owned(),
+                            })
+                        } else {
+                            Ok(compiler.builder.build_load(origin_ty, addr, "load"))
+                        }
+                    }
+                }
+            }
+            LValue::Idx((ident_loc, ident), idxs) => {
+                let symbol = compiler.scopes.find(ident).ok_or_else(|| {
+                    CodeGenError::UnresolvedIdentifier {
+                        loc: ident_loc.to_owned(),
+                        ident: ident.to_string(),
+                    }
+                })?;
+                match symbol {
+                    crate::scopes::Symbol::Const(val) => todo!(),
+                    crate::scopes::Symbol::Var {
+                        addr,
+                        llvm_ty,
+                        origin_ty,
+                    } => todo!(),
+                }
+            }
+        }
+    }
+}
+
+impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Literal> {
+    type Out = BasicValueEnum<'ctx>;
+
+    fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        match &self.1 {
+            Literal::Bool(lit) => Ok(compiler
+                .ctx
+                .bool_type()
+                .const_int(*lit as u64, false)
+                .as_basic_value_enum()),
+            Literal::Int(lit) => Ok(compiler
+                .ctx
+                .i32_type()
+                .const_int(*lit as u64, false)
+                .as_basic_value_enum()),
+            Literal::Float(lit) => Ok(compiler
+                .ctx
+                .f32_type()
+                .const_float(*lit as f64)
+                .as_basic_value_enum()),
+            Literal::List(_) => Err(CodeGenError::Unimplemented { loc: self.0 }),
         }
     }
 }
