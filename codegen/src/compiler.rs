@@ -5,6 +5,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{FloatType, IntType, VoidType},
+    values::FunctionValue,
 };
 use std::ops::{Deref, DerefMut};
 

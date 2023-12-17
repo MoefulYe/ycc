@@ -32,9 +32,8 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                             .as_basic_value_enum())
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "bool",
-                            expected_loc: *ty_loc,
-                            found: lit.type_str(),
+                            expected: "bool".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -47,9 +46,8 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                             .as_basic_value_enum())
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "int",
-                            expected_loc: *ty_loc,
-                            found: lit.type_str(),
+                            expected: "int".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -62,9 +60,8 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                             .as_basic_value_enum())
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "float",
-                            expected_loc: *ty_loc,
-                            found: lit.type_str(),
+                            expected: "float".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -84,9 +81,8 @@ impl TryIntoLLVMValue for Sourced<Literal> {
                     Ok(val.as_basic_value_enum())
                 } else {
                     Err(CodeGenError::TypeMismatch {
-                        expected: ty.as_str(),
-                        expected_loc: *ty_loc,
-                        found: lit.type_str(),
+                        expected: ty.as_str().to_string(),
+                        found: lit.type_str().to_string(),
                         found_loc: *lit_loc,
                     })
                 }
@@ -121,9 +117,8 @@ fn handle_array_int<'ctx>(
                         Ok(ok)
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "int",
-                            expected_loc: prim_loc,
-                            found: lit.type_str(),
+                            expected: "int".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -149,9 +144,8 @@ fn handle_array_int<'ctx>(
                 handle_array_int(arr, type_, &dims[1..], prim_loc)?
             } else {
                 return Err(CodeGenError::TypeMismatch {
-                    expected: "array",
-                    expected_loc: prim_loc,
-                    found: first.type_str(),
+                    expected: "array".to_string(),
+                    found: first.type_str().to_string(),
                     found_loc: *first_loc,
                 });
             };
@@ -166,9 +160,8 @@ fn handle_array_int<'ctx>(
                                 Ok(ok)
                             }
                             _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array",
-                                expected_loc: prim_loc,
-                                found: item.type_str(),
+                                expected: "array".to_string(),
+                                found: item.type_str().to_string(),
                                 found_loc: *loc,
                             }),
                         },
@@ -208,9 +201,8 @@ fn handle_array_bool<'ctx>(
                         Ok(ok)
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "bool",
-                            expected_loc: prim_loc,
-                            found: lit.type_str(),
+                            expected: "bool".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -236,9 +228,8 @@ fn handle_array_bool<'ctx>(
                 handle_array_bool(arr, type_, &dims[1..], prim_loc)?
             } else {
                 return Err(CodeGenError::TypeMismatch {
-                    expected: "array",
-                    expected_loc: prim_loc,
-                    found: first.type_str(),
+                    expected: "array".to_string(),
+                    found: first.type_str().to_string(),
                     found_loc: *first_loc,
                 });
             };
@@ -253,9 +244,8 @@ fn handle_array_bool<'ctx>(
                                 Ok(ok)
                             }
                             _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array",
-                                expected_loc: prim_loc,
-                                found: item.type_str(),
+                                expected: "array".to_string(),
+                                found: item.type_str().to_string(),
                                 found_loc: *loc,
                             }),
                         },
@@ -295,9 +285,8 @@ fn handle_array_float<'ctx>(
                         Ok(ok)
                     } else {
                         Err(CodeGenError::TypeMismatch {
-                            expected: "float",
-                            expected_loc: prim_loc,
-                            found: lit.type_str(),
+                            expected: "float".to_string(),
+                            found: lit.type_str().to_string(),
                             found_loc: *lit_loc,
                         })
                     }
@@ -323,9 +312,8 @@ fn handle_array_float<'ctx>(
                 handle_array_float(arr, type_, &dims[1..], prim_loc)?
             } else {
                 return Err(CodeGenError::TypeMismatch {
-                    expected: "array",
-                    expected_loc: prim_loc,
-                    found: first.type_str(),
+                    expected: "array".to_string(),
+                    found: first.type_str().to_string(),
                     found_loc: *first_loc,
                 });
             };
@@ -340,9 +328,8 @@ fn handle_array_float<'ctx>(
                                 Ok(ok)
                             }
                             _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array",
-                                expected_loc: prim_loc,
-                                found: item.type_str(),
+                                expected: "array".to_string(),
+                                found: item.type_str().to_string(),
                                 found_loc: *loc,
                             }),
                         },

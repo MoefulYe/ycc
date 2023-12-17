@@ -1,3 +1,5 @@
+use std::error;
+
 use ast::Loc;
 use miette::Diagnostic;
 use thiserror::Error;
@@ -8,10 +10,8 @@ pub enum CodeGenError {
     #[error("type mismatch expected `{expected}` but found `{found}`")]
     #[diagnostic(code(CodeGenError::TypeMismatch))]
     TypeMismatch {
-        expected: &'static str,
-        #[label("expected: `{expected}`")]
-        expected_loc: Loc,
-        found: &'static str,
+        expected: String,
+        found: String,
         #[label("found: `{found}`")]
         found_loc: Loc,
     },
@@ -127,4 +127,7 @@ pub enum CodeGenError {
         loc: Loc,
         ty: String,
     },
+    #[error("unknown error")]
+    #[diagnostic(code(CodeGenError::Unknown))]
+    Unknown,
 }

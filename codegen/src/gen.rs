@@ -1,5 +1,5 @@
 use crate::{
-    compiler::Compiler,
+    compiler::{Compiler, Loop},
     error::{CodeGenError, Result},
     ty::{ndim_arr_of, TryIntoFuncType, TryIntoLLVMType},
     val::TryIntoLLVMValue,
@@ -205,6 +205,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Block<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
+        for stmt in &self.1 {
+            stmt.codegen(compiler)?;
+        }
         Ok(())
     }
 }
@@ -237,8 +240,21 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Stmt<'ast>> {
                 compiler.builder.build_unconditional_branch(head);
                 Ok(())
             }
-            Stmt::Return(stmt) => todo!(),
-            Stmt::Expr(stmt) => todo!(),
+            Stmt::Return(stmt) => match &stmt.1 {
+                Some(expr) => {
+                    let ret = expr.codegen(compiler)?;
+                    compiler.builder.build_return(Some(&ret));
+                    Ok(())
+                }
+                None => {
+                    compiler.builder.build_return(None);
+                    Ok(())
+                }
+            },
+            Stmt::Expr(stmt) => {
+                stmt.codegen(compiler)?;
+                Ok(())
+            }
             Stmt::Block(block) => block.codegen(&mut compiler.guard()),
         }
     }
@@ -266,7 +282,130 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        let func = compiler
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_parent()
+            .unwrap();
+        match &self.1 {
+            IfStmt::If(cond, then) => {
+                let cond = match cond.codegen(compiler)? {
+                    BasicValueEnum::IntValue(val) => {
+                        if val.get_type().get_bit_width() == 1 {
+                            val
+                        } else {
+                            return Err(CodeGenError::TypeMismatch {
+                                expected: "bool".to_string(),
+                                found: "int".to_string(),
+                                found_loc: cond.0,
+                            });
+                        }
+                    }
+                    val => {
+                        return Err(CodeGenError::TypeMismatch {
+                            expected: "bool".to_owned(),
+                            found: val.get_type().to_string(),
+                            found_loc: cond.0,
+                        })
+                    }
+                };
+                let then_block = compiler.ctx.append_basic_block(func, "if.then");
+                let exit_block = compiler.ctx.append_basic_block(func, "exit");
+                compiler
+                    .builder
+                    .build_conditional_branch(cond, then_block, exit_block);
+                compiler.builder.position_at_end(then_block);
+                then.codegen(&mut compiler.guard())?;
+                compiler.builder.build_unconditional_branch(exit_block);
+                compiler.builder.position_at_end(exit_block);
+                Ok(())
+            }
+            IfStmt::IfElse(cond, then, else_) => {
+                let cond = match cond.codegen(compiler)? {
+                    BasicValueEnum::IntValue(val) => {
+                        if val.get_type().get_bit_width() == 1 {
+                            val
+                        } else {
+                            return Err(CodeGenError::TypeMismatch {
+                                expected: "bool".to_string(),
+                                found: "int".to_string(),
+                                found_loc: cond.0,
+                            });
+                        }
+                    }
+                    val => {
+                        return Err(CodeGenError::TypeMismatch {
+                            expected: "bool".to_string(),
+                            found: val.get_type().to_string(),
+                            found_loc: cond.0,
+                        })
+                    }
+                };
+                let func = compiler
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let then_block = compiler.ctx.append_basic_block(func, "if.then");
+                let else_block = compiler.ctx.append_basic_block(func, "if.else");
+                let exit_block = compiler.ctx.append_basic_block(func, "exit");
+                compiler
+                    .builder
+                    .build_conditional_branch(cond, then_block, else_block);
+                compiler.builder.position_at_end(then_block);
+                then.codegen(&mut compiler.guard())?;
+                compiler.builder.build_unconditional_branch(exit_block);
+                compiler.builder.position_at_end(else_block);
+                else_.codegen(&mut compiler.guard())?;
+                compiler.builder.build_unconditional_branch(exit_block);
+                compiler.builder.position_at_end(exit_block);
+                Ok(())
+            }
+            IfStmt::IfElseIf(cond, then, else_) => {
+                let func = compiler
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let cond = match cond.codegen(compiler)? {
+                    BasicValueEnum::IntValue(val) => {
+                        if val.get_type().get_bit_width() == 1 {
+                            val
+                        } else {
+                            return Err(CodeGenError::TypeMismatch {
+                                expected: "bool".to_string(),
+                                found: "int".to_string(),
+                                found_loc: cond.0,
+                            });
+                        }
+                    }
+                    val => {
+                        return Err(CodeGenError::TypeMismatch {
+                            expected: "bool".to_string(),
+                            found: val.get_type().to_string(),
+                            found_loc: cond.0,
+                        })
+                    }
+                };
+                let then_block = compiler.ctx.append_basic_block(func, "if.then");
+                let else_block = compiler.ctx.append_basic_block(func, "if.else");
+                let exit_block = compiler.ctx.append_basic_block(func, "exit");
+                compiler
+                    .builder
+                    .build_conditional_branch(cond, then_block, else_block);
+                compiler.builder.position_at_end(then_block);
+                then.codegen(&mut compiler.guard())?;
+                compiler.builder.build_unconditional_branch(exit_block);
+                compiler.builder.position_at_end(else_block);
+                else_.codegen(compiler)?;
+                compiler.builder.build_unconditional_branch(exit_block);
+                compiler.builder.position_at_end(exit_block);
+                Ok(())
+            }
+        }
     }
 }
 
@@ -274,7 +413,45 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        let func = compiler
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_parent()
+            .unwrap();
+        let head = compiler.ctx.append_basic_block(func, "while.head");
+        let body = compiler.ctx.append_basic_block(func, "while.body");
+        let after = compiler.ctx.append_basic_block(func, "while.after");
+        compiler.loops.push(Loop { head, after });
+        compiler.builder.build_unconditional_branch(head);
+        compiler.builder.position_at_end(head);
+        let cond = match self.1.cond.codegen(compiler)? {
+            BasicValueEnum::IntValue(val) => {
+                if val.get_type().get_bit_width() == 1 {
+                    val
+                } else {
+                    return Err(CodeGenError::TypeMismatch {
+                        expected: "bool".to_owned(),
+                        found: "int".to_owned(),
+                        found_loc: self.1.cond.0,
+                    });
+                }
+            }
+            val => {
+                return Err(CodeGenError::TypeMismatch {
+                    expected: "bool".to_owned(),
+                    found: val.get_type().to_string(),
+                    found_loc: self.1.cond.0,
+                })
+            }
+        };
+        compiler.builder.build_conditional_branch(cond, body, after);
+        compiler.builder.position_at_end(body);
+        self.1.body.codegen(&mut compiler.guard())?;
+        compiler.builder.build_unconditional_branch(head);
+        compiler.builder.position_at_end(after);
+        compiler.loops.pop().unwrap();
+        Ok(())
     }
 }
 
@@ -316,7 +493,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<PrimExpr<'ast>> {
                     .build_call(func, &args, "call")
                     .try_as_basic_value()
                     .left()
-                    .unwrap_or(compiler.ctx.i32_type().const_zero().as_basic_value_enum()))
+                    .unwrap_or_else(|| compiler.ctx.i32_type().const_zero().as_basic_value_enum()))
             }
         }
     }
@@ -337,9 +514,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                 match symbol {
                     crate::scopes::Symbol::Const(val) => {
                         if val.is_array_value() {
-                            Err(CodeGenError::IllegalArrayInitializer {
-                                loc: loc.to_owned(),
-                            })
+                            todo!()
                         } else {
                             Ok(val)
                         }
