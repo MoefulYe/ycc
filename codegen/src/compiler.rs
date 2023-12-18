@@ -4,8 +4,8 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
+    passes::PassManager,
     types::{FloatType, IntType, VoidType},
-    values::FunctionValue,
 };
 use std::ops::{Deref, DerefMut};
 
@@ -99,6 +99,15 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
 
     pub fn guard<'guard>(&'guard mut self) -> ScopedGuard<'guard, 'ast, 'ctx> {
         ScopedGuard::new(self)
+    }
+
+    pub fn optimize(&self) -> bool {
+        let manager = PassManager::create(());
+        manager.add_promote_memory_to_register_pass();
+        manager.add_function_inlining_pass();
+        manager.add_global_dce_pass();
+        manager.add_constant_merge_pass();
+        manager.run_on(&self.module)
     }
 }
 

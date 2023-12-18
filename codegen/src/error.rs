@@ -130,4 +130,12 @@ pub enum CodeGenError {
     #[error("unknown error")]
     #[diagnostic(code(CodeGenError::Unknown))]
     Unknown,
+    //把常量作为左值使用
+    #[error("constant `{ident}` cannot be used as left value")]
+    #[diagnostic(code(CodeGenError::ConstantAsLeftValue))]
+    ConstantAsLeftValue {
+        #[label("constant `{ident}` cannot be used as left value")]
+        loc: Loc,
+        ident: String,
+    },
 }

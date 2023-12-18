@@ -10,4 +10,8 @@ members = [".", "ast" ,"parser", "visual_ast" , "codegen"]
 [dependencies]
 lalrpop-util = {version = "0.20.0", features = ["lexer", "unicode"]}
 miette = { version = "5.10.0", features = ["fancy"] }
+inkwell = { version = "0.2.0", features = ["llvm16-0"] }
+llvm-sys-160 = { package = "llvm-sys", version = "160.1.3", features = ["prefer-static"] }
 parser = { path = "parser" }
+codegen = { path = "codegen" }
+visual_ast = { path = "visual_ast" }

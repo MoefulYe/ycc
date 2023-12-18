@@ -266,7 +266,25 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<VarDecl<'ast>> {
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         let (_, this) = self;
         let VarDecl { ty, ident, init } = this;
-        todo!()
+        match &ty.1 {
+            ast::Type::Prim(ty) => {
+                let ty = ty.llvm_type(compiler.ctx)?;
+                let ptr = compiler.builder.build_alloca(ty, ident.1);
+                compiler
+                    .scopes
+                    .insert(ident.1, (ptr, ty, ty))
+                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
+                    })?;
+                if let Some(init) = init {
+                    let val = init.codegen(compiler)?;
+                    compiler.builder.build_store(ptr, val);
+                }
+                Ok(())
+            }
+            ast::Type::Array(_, _) => todo!(),
+        }
     }
 }
 
@@ -274,7 +292,35 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        todo!()
+        let (loc, this) = self;
+        let AssignStmt { lhs, rhs } = this;
+        match &lhs.1 {
+            LValue::Ident(ident) => {
+                let (addr, llvm_ty, origin_ty) =
+                    match compiler.scopes.find(ident.1).ok_or_else(|| {
+                        CodeGenError::UnresolvedIdentifier {
+                            loc: ident.0,
+                            ident: ident.1.to_string(),
+                        }
+                    })? {
+                        crate::scopes::Symbol::Const(_) => {
+                            return Err(CodeGenError::ConstantAsLeftValue {
+                                loc: loc.to_owned(),
+                                ident: ident.1.to_string(),
+                            })
+                        }
+                        crate::scopes::Symbol::Var {
+                            addr,
+                            llvm_ty,
+                            origin_ty,
+                        } => (addr, llvm_ty, origin_ty),
+                    };
+                let val = rhs.codegen(compiler)?;
+                compiler.builder.build_store(addr, val);
+                Ok(())
+            }
+            LValue::Idx(_, _) => todo!(),
+        }
     }
 }
 
