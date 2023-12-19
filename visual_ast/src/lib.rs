@@ -1,17 +1,8 @@
-pub mod drawer;
-pub mod utils;
+mod drawer;
+mod utils;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+use graphviz_rust::{cmd::Format, exec, printer::PrinterContext};
+pub fn visualize(ast: &ast::Module<'_>) -> Result<String, std::io::Error> {
+    let g = drawer::draw(ast);
+    exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])
 }

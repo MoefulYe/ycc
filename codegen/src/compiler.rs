@@ -5,9 +5,19 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
+    targets::{
+        CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
+    },
     types::{FloatType, IntType, VoidType},
+    OptimizationLevel,
 };
-use std::ops::{Deref, DerefMut};
+use miette::{miette, IntoDiagnostic};
+use std::{
+    fs,
+    io::Write,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 
 use crate::{
     gen::CodeGen,
@@ -103,11 +113,71 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
 
     pub fn optimize(&self) -> bool {
         let manager = PassManager::create(());
+        manager.add_instruction_combining_pass();
+        manager.add_reassociate_pass();
+        manager.add_gvn_pass();
+        manager.add_cfg_simplification_pass();
+        manager.add_basic_alias_analysis_pass();
         manager.add_promote_memory_to_register_pass();
         manager.add_function_inlining_pass();
         manager.add_global_dce_pass();
         manager.add_constant_merge_pass();
         manager.run_on(&self.module)
+    }
+
+    pub fn export_llvm_ir(&self, path: PathBuf) -> miette::Result<()> {
+        fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)
+            .into_diagnostic()?
+            .write_all(self.module.to_string().as_bytes())
+            .into_diagnostic()
+    }
+    pub fn export_asm(&self, path: PathBuf) -> miette::Result<()> {
+        Target::initialize_x86(&InitializationConfig::default());
+        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
+        let machine = target
+            .create_target_machine(
+                &triple,
+                TargetMachine::get_host_cpu_name()
+                    .to_str()
+                    .unwrap_or_default(),
+                TargetMachine::get_host_cpu_features()
+                    .to_str()
+                    .unwrap_or_default(),
+                OptimizationLevel::Aggressive,
+                RelocMode::Default,
+                CodeModel::Default,
+            )
+            .ok_or_else(|| miette!("unknown error"))?;
+        machine
+            .write_to_file(&self.module, FileType::Assembly, &path)
+            .map_err(|err| miette!("{err}"))
+    }
+    pub fn export_obj(&self, path: PathBuf) -> miette::Result<()> {
+        Target::initialize_x86(&InitializationConfig::default());
+        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
+        let machine = target
+            .create_target_machine(
+                &triple,
+                TargetMachine::get_host_cpu_name()
+                    .to_str()
+                    .unwrap_or_default(),
+                TargetMachine::get_host_cpu_features()
+                    .to_str()
+                    .unwrap_or_default(),
+                OptimizationLevel::Aggressive,
+                RelocMode::Default,
+                CodeModel::Default,
+            )
+            .ok_or_else(|| miette!("unknown err"))?;
+        machine
+            .write_to_file(&self.module, FileType::Object, &path)
+            .map_err(|err| miette!("{err}"))
     }
 }
 

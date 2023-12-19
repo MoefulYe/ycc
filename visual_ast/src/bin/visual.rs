@@ -1,9 +1,5 @@
-use clap::{builder::TypedValueParser, Parser};
-use graphviz_rust::{
-    cmd::Format,
-    exec,
-    printer::{DotPrinter, PrinterContext},
-};
+use clap::Parser;
+use miette::IntoDiagnostic;
 use miette::NamedSource;
 use parser::parse;
 use std::{
@@ -11,7 +7,7 @@ use std::{
     io::{Read, Write},
     path::PathBuf,
 };
-use visual_ast::drawer::draw;
+use visual_ast::visualize;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -39,10 +35,8 @@ fn main() -> miette::Result<()> {
         .expect("failed to read input file");
     match parse(&code) {
         Ok(ast) => {
-            let g = draw(&ast);
-            let svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])
-                .expect("failed to parse svg");
-            OpenOptions::new()
+            let svg = visualize(&ast).into_diagnostic()?;
+            crate::OpenOptions::new()
                 .write(true)
                 .truncate(true)
                 .create(true)
