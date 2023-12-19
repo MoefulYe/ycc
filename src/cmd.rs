@@ -1,4 +1,4 @@
-use codegen::compiler::{self, Compiler};
+use codegen::compiler::Compiler;
 use inkwell::context::Context;
 use miette::{IntoDiagnostic, NamedSource};
 use parser::parse;
