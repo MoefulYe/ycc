@@ -41,6 +41,8 @@ pub struct Cmd {
         default_value_t = FileType::LlvmIr
     )]
     type_: FileType,
+    #[arg(short = 'O', long = "optimize", help = "optimize the code or not")]
+    optimize: bool,
 }
 
 impl Cmd {
@@ -60,7 +62,7 @@ impl Cmd {
                     .open(output)
                     .into_diagnostic()?,
             ),
-            None => Box::new(stdout()),
+            None => Box::new(stdout().lock()),
         };
 
         match self.type_ {
@@ -75,7 +77,9 @@ impl Cmd {
                 if let Err(err) = compiler.codegen(&ast) {
                     return Err(err.with_source_code(NamedSource::new(input, code)));
                 }
-                compiler.optimize();
+                if self.optimize {
+                    compiler.optimize();
+                }
                 match ty {
                     FileType::LlvmIr => compiler.export_llvm_ir(&mut output),
                     FileType::Asm => compiler.export_asm(&mut output),
