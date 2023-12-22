@@ -4,7 +4,7 @@ use miette::{IntoDiagnostic, NamedSource};
 use parser::parse;
 use std::{
     fs::{File, OpenOptions},
-    io::{read_to_string, stdout, Read, Write},
+    io::{read_to_string, stdout, Write},
     path::PathBuf,
 };
 
