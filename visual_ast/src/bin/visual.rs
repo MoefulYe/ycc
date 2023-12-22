@@ -40,7 +40,7 @@ fn main() -> miette::Result<()> {
                 .write(true)
                 .truncate(true)
                 .create(true)
-                .open(&output)
+                .open(output)
                 .expect("failed to open output file")
                 .write_all(svg.as_bytes())
                 .expect("failed to write output file");
