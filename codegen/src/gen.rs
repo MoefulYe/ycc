@@ -296,7 +296,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
         let AssignStmt { lhs, rhs } = this;
         match &lhs.1 {
             LValue::Ident(ident) => {
-                let (addr, llvm_ty, origin_ty) =
+                let (addr, _llvm_ty, _origin_ty) =
                     match compiler.scopes.find(ident.1).ok_or_else(|| {
                         CodeGenError::UnresolvedIdentifier {
                             loc: ident.0,
@@ -580,7 +580,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                     }
                 }
             }
-            LValue::Idx((ident_loc, ident), idxs) => {
+            LValue::Idx((ident_loc, ident), _idxs) => {
                 let symbol = compiler.scopes.find(ident).ok_or_else(|| {
                     CodeGenError::UnresolvedIdentifier {
                         loc: ident_loc.to_owned(),
@@ -588,11 +588,11 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                     }
                 })?;
                 match symbol {
-                    crate::scopes::Symbol::Const(val) => todo!(),
+                    crate::scopes::Symbol::Const(_val) => todo!(),
                     crate::scopes::Symbol::Var {
-                        addr,
-                        llvm_ty,
-                        origin_ty,
+                        addr: _,
+                        llvm_ty: _,
+                        origin_ty: _,
                     } => todo!(),
                 }
             }

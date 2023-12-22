@@ -34,13 +34,13 @@ impl<'ctx> From<BasicValueEnum<'ctx>> for Symbol<'ctx> {
 
 impl<'ctx> From<IntValue<'ctx>> for Symbol<'ctx> {
     fn from(value: IntValue<'ctx>) -> Self {
-        Self::Const(value.as_basic_value_enum().into())
+        Self::Const(value.as_basic_value_enum())
     }
 }
 
 impl<'ctx> From<FloatValue<'ctx>> for Symbol<'ctx> {
     fn from(value: FloatValue<'ctx>) -> Self {
-        Self::Const(value.as_basic_value_enum().into())
+        Self::Const(value.as_basic_value_enum())
     }
 }
 
@@ -71,7 +71,7 @@ impl<'input, 'ctx> Scopes<'input, 'ctx> {
 
     pub fn insert(&mut self, name: &'input str, value: impl Into<Symbol<'ctx>>) -> Result<(), ()> {
         let scope = self.0.last_mut().expect("unreachable");
-        if let Some(_) = scope.insert(name, value.into()) {
+        if scope.insert(name, value.into()).is_some() {
             Err(())
         } else {
             Ok(())

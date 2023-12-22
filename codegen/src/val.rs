@@ -134,7 +134,7 @@ fn handle_array_int<'ctx>(
             Err(CodeGenError::ExcessElementsInArrayInitializer {
                 loc: arr[size as usize].0,
             })
-        } else if arr.len() == 0 {
+        } else if arr.is_empty() {
             let ty = ndim_arr_of(type_, dims);
             let val = ty.const_zero();
             Ok((ty, val))
@@ -218,7 +218,7 @@ fn handle_array_bool<'ctx>(
             Err(CodeGenError::ExcessElementsInArrayInitializer {
                 loc: arr[size as usize].0,
             })
-        } else if arr.len() == 0 {
+        } else if arr.is_empty() {
             let ty = ndim_arr_of(type_, dims);
             let val = ty.const_zero();
             Ok((ty, val))
@@ -302,7 +302,7 @@ fn handle_array_float<'ctx>(
             Err(CodeGenError::ExcessElementsInArrayInitializer {
                 loc: arr[size as usize].0,
             })
-        } else if arr.len() == 0 {
+        } else if arr.is_empty() {
             let ty = ndim_arr_of(type_, dims);
             let val = ty.const_zero();
             Ok((ty, val))

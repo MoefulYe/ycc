@@ -13,10 +13,8 @@ use inkwell::{
 };
 use miette::{miette, IntoDiagnostic};
 use std::{
-    fs,
     io::Write,
     ops::{Deref, DerefMut},
-    path::PathBuf,
 };
 
 use crate::{
