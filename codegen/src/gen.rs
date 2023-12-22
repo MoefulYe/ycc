@@ -251,10 +251,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Stmt<'ast>> {
                     Ok(())
                 }
             },
-            Stmt::Expr(stmt) => {
-                stmt.codegen(compiler)?;
-                Ok(())
-            }
+            Stmt::Expr(stmt) => stmt.codegen(compiler).map(|_| ()),
             Stmt::Block(block) => block.codegen(&mut compiler.guard()),
         }
     }
@@ -363,7 +360,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                     .build_conditional_branch(cond, then_block, exit_block);
                 compiler.builder.position_at_end(then_block);
                 then.codegen(&mut compiler.guard())?;
-                compiler.builder.build_unconditional_branch(exit_block);
+                if compiler.no_terminator() {
+                    compiler.builder.build_unconditional_branch(exit_block);
+                }
                 compiler.builder.position_at_end(exit_block);
                 Ok(())
             }
@@ -402,10 +401,14 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                     .build_conditional_branch(cond, then_block, else_block);
                 compiler.builder.position_at_end(then_block);
                 then.codegen(&mut compiler.guard())?;
-                compiler.builder.build_unconditional_branch(exit_block);
+                if compiler.no_terminator() {
+                    compiler.builder.build_unconditional_branch(exit_block);
+                }
                 compiler.builder.position_at_end(else_block);
                 else_.codegen(&mut compiler.guard())?;
-                compiler.builder.build_unconditional_branch(exit_block);
+                if compiler.no_terminator() {
+                    compiler.builder.build_unconditional_branch(exit_block);
+                }
                 compiler.builder.position_at_end(exit_block);
                 Ok(())
             }
@@ -444,10 +447,14 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                     .build_conditional_branch(cond, then_block, else_block);
                 compiler.builder.position_at_end(then_block);
                 then.codegen(&mut compiler.guard())?;
-                compiler.builder.build_unconditional_branch(exit_block);
+                if compiler.no_terminator() {
+                    compiler.builder.build_unconditional_branch(exit_block);
+                }
                 compiler.builder.position_at_end(else_block);
                 else_.codegen(compiler)?;
-                compiler.builder.build_unconditional_branch(exit_block);
+                if compiler.no_terminator() {
+                    compiler.builder.build_unconditional_branch(exit_block);
+                }
                 compiler.builder.position_at_end(exit_block);
                 Ok(())
             }
@@ -468,7 +475,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
         let head = compiler.ctx.append_basic_block(func, "while.head");
         let body = compiler.ctx.append_basic_block(func, "while.body");
         let after = compiler.ctx.append_basic_block(func, "while.after");
-        compiler.loops.push(Loop { head, after });
+        let compiler = &mut compiler.guard_loop(head, after);
         compiler.builder.build_unconditional_branch(head);
         compiler.builder.position_at_end(head);
         let cond = match self.1.cond.codegen(compiler)? {
@@ -494,9 +501,10 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
         compiler.builder.build_conditional_branch(cond, body, after);
         compiler.builder.position_at_end(body);
         self.1.body.codegen(&mut compiler.guard())?;
-        compiler.builder.build_unconditional_branch(head);
+        if compiler.no_terminator() {
+            compiler.builder.build_unconditional_branch(head);
+        }
         compiler.builder.position_at_end(after);
-        compiler.loops.pop().unwrap();
         Ok(())
     }
 }

@@ -22,7 +22,7 @@ use crate::{
     scopes::{Scopes, Symbol},
 };
 
-pub struct Loop<'ctx> {
+pub(crate) struct Loop<'ctx> {
     pub head: BasicBlock<'ctx>,
     pub after: BasicBlock<'ctx>,
 }
@@ -31,8 +31,8 @@ pub struct Compiler<'ast, 'ctx> {
     pub ctx: &'ctx Context,
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
-    pub scopes: Scopes<'ast, 'ctx>,
-    pub loops: Vec<Loop<'ctx>>,
+    pub(crate) scopes: Scopes<'ast, 'ctx>,
+    pub(crate) loops: Vec<Loop<'ctx>>,
 }
 
 impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
@@ -105,8 +105,16 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         ast.codegen(self).map_err(|err| err.into())
     }
 
-    pub fn guard<'guard>(&'guard mut self) -> ScopedGuard<'guard, 'ast, 'ctx> {
+    pub(crate) fn guard<'guard>(&'guard mut self) -> ScopedGuard<'guard, 'ast, 'ctx> {
         ScopedGuard::new(self)
+    }
+
+    pub(crate) fn guard_loop<'guard>(
+        &'guard mut self,
+        head: BasicBlock<'ctx>,
+        after: BasicBlock<'ctx>,
+    ) -> LoopGuard<'guard, 'ast, 'ctx> {
+        LoopGuard::new(self, head, after)
     }
 
     pub fn optimize(&self) -> bool {
@@ -173,9 +181,17 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
             .map_err(|err| miette!("{err}"))?;
         output.write_all(content.as_slice()).into_diagnostic()
     }
+
+    pub(crate) fn no_terminator(&self) -> bool {
+        self.builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+    }
 }
 
-pub struct ScopedGuard<'compiler, 'ast, 'ctx>(&'compiler mut Compiler<'ast, 'ctx>);
+pub(crate) struct ScopedGuard<'compiler, 'ast, 'ctx>(&'compiler mut Compiler<'ast, 'ctx>);
 
 impl<'compiler, 'ast, 'ctx> Drop for ScopedGuard<'compiler, 'ast, 'ctx> {
     fn drop(&mut self) {
@@ -201,5 +217,38 @@ impl<'compiler, 'ast, 'ctx> ScopedGuard<'compiler, 'ast, 'ctx> {
     pub fn new(compiler: &'compiler mut Compiler<'ast, 'ctx>) -> Self {
         compiler.scopes.enter();
         Self(compiler)
+    }
+}
+
+pub(crate) struct LoopGuard<'compiler, 'ast, 'ctx>(&'compiler mut Compiler<'ast, 'ctx>);
+
+impl<'compiler, 'ast, 'ctx> LoopGuard<'compiler, 'ast, 'ctx> {
+    pub fn new(
+        compiler: &'compiler mut Compiler<'ast, 'ctx>,
+        head: BasicBlock<'ctx>,
+        after: BasicBlock<'ctx>,
+    ) -> Self {
+        compiler.loops.push(Loop { head, after });
+        LoopGuard(compiler)
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> Drop for LoopGuard<'compiler, 'ast, 'ctx> {
+    fn drop(&mut self) {
+        self.loops.pop().expect("unreachable");
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> Deref for LoopGuard<'compiler, 'ast, 'ctx> {
+    type Target = Compiler<'ast, 'ctx>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'compiler, 'ast, 'ctx> DerefMut for LoopGuard<'compiler, 'ast, 'ctx> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
     }
 }

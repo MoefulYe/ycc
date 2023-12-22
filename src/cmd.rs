@@ -27,7 +27,11 @@ pub enum FileType {
 )]
 pub struct Cmd {
     input: PathBuf,
-    #[arg(short, long, help = "where the output file to place")]
+    #[arg(
+        short,
+        long,
+        help = "where the output file to place, default print at stdout"
+    )]
     output: Option<PathBuf>,
     #[arg(
         short = 't',
