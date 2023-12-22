@@ -125,17 +125,11 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         manager.run_on(&self.module)
     }
 
-    pub fn export_llvm_ir(&self, path: PathBuf) -> miette::Result<()> {
-        fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(path)
-            .into_diagnostic()?
-            .write_all(self.module.to_string().as_bytes())
-            .into_diagnostic()
+    pub fn export_llvm_ir(&self, output: &mut dyn Write) -> miette::Result<()> {
+        let content = self.module.to_string();
+        output.write_all(content.as_bytes()).into_diagnostic()
     }
-    pub fn export_asm(&self, path: PathBuf) -> miette::Result<()> {
+    pub fn export_asm(&self, output: &mut dyn Write) -> miette::Result<()> {
         Target::initialize_x86(&InitializationConfig::default());
         let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
         let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
@@ -153,11 +147,12 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
                 CodeModel::Default,
             )
             .ok_or_else(|| miette!("unknown error"))?;
-        machine
-            .write_to_file(&self.module, FileType::Assembly, &path)
-            .map_err(|err| miette!("{err}"))
+        let content = machine
+            .write_to_memory_buffer(&self.module, FileType::Assembly)
+            .map_err(|err| miette!("{err}"))?;
+        output.write_all(content.as_slice()).into_diagnostic()
     }
-    pub fn export_obj(&self, path: PathBuf) -> miette::Result<()> {
+    pub fn export_obj(&self, output: &mut dyn Write) -> miette::Result<()> {
         Target::initialize_x86(&InitializationConfig::default());
         let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
         let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
@@ -175,9 +170,10 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
                 CodeModel::Default,
             )
             .ok_or_else(|| miette!("unknown err"))?;
-        machine
-            .write_to_file(&self.module, FileType::Object, &path)
-            .map_err(|err| miette!("{err}"))
+        let content = machine
+            .write_to_memory_buffer(&self.module, FileType::Object)
+            .map_err(|err| miette!("{err}"))?;
+        output.write_all(content.as_slice()).into_diagnostic()
     }
 }
 

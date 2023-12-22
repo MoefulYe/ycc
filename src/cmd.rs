@@ -4,7 +4,7 @@ use miette::{IntoDiagnostic, NamedSource};
 use parser::parse;
 use std::{
     fs::{File, OpenOptions},
-    io::{Read, Write},
+    io::{read_to_string, stdout, Read, Write},
     path::PathBuf,
 };
 
@@ -16,17 +16,6 @@ pub enum FileType {
     LlvmIr,
     Asm,
     Obj,
-}
-
-impl FileType {
-    fn ext(self) -> &'static str {
-        match self {
-            FileType::Svg => "svg",
-            FileType::LlvmIr => "ll",
-            FileType::Asm => "asm",
-            FileType::Obj => "o",
-        }
-    }
 }
 
 #[derive(Parser)]
@@ -52,35 +41,29 @@ pub struct Cmd {
 
 impl Cmd {
     pub fn exec(self) -> miette::Result<()> {
-        let mut code = String::new();
-        File::open(&self.input)
-            .into_diagnostic()?
-            .read_to_string(&mut code)
-            .into_diagnostic()?;
+        let code = read_to_string(File::open(&self.input).into_diagnostic()?).into_diagnostic()?;
         let input = self.input.to_str().unwrap_or("unknown");
         let ast = match parse(&code) {
             Ok(ok) => ok,
             Err(err) => return Err(err.with_source_code(NamedSource::new(input, code))),
         };
-        let output = match self.output {
-            Some(path) => path,
-            None => {
-                let mut path = PathBuf::from(input);
-                path.set_extension(self.type_.ext());
-                path
-            }
-        };
-        match self.type_ {
-            FileType::Svg => {
-                let svg = visual_ast::visualize(&ast).into_diagnostic()?;
+        let mut output: Box<dyn Write> = match self.output {
+            Some(output) => Box::new(
                 OpenOptions::new()
                     .write(true)
                     .truncate(true)
                     .create(true)
                     .open(output)
-                    .into_diagnostic()?
-                    .write_all(svg.as_bytes())
-                    .into_diagnostic()
+                    .into_diagnostic()?,
+            ),
+            None => Box::new(stdout()),
+        };
+
+        match self.type_ {
+            FileType::Svg => {
+                let svg = visual_ast::visualize(&ast).into_diagnostic()?;
+                output.write_all(svg.as_bytes()).into_diagnostic()?;
+                Ok(())
             }
             ty => {
                 let ctx = &Context::create();
@@ -90,9 +73,9 @@ impl Cmd {
                 }
                 compiler.optimize();
                 match ty {
-                    FileType::LlvmIr => compiler.export_llvm_ir(output),
-                    FileType::Asm => compiler.export_asm(output),
-                    FileType::Obj => compiler.export_obj(output),
+                    FileType::LlvmIr => compiler.export_llvm_ir(&mut output),
+                    FileType::Asm => compiler.export_asm(&mut output),
+                    FileType::Obj => compiler.export_obj(&mut output),
                     _ => unreachable!(),
                 }
             }
