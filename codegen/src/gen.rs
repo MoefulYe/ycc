@@ -9,6 +9,7 @@ use ast::{
     Literal, Module, PrimExpr, Sourced, Stmt, Unary, UnaryOp, Unit, VarDecl, WhileStmt,
 };
 use inkwell::{
+    basic_block::BasicBlock,
     types::BasicType,
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue},
     AddressSpace, FloatPredicate, IntPredicate,
@@ -220,7 +221,14 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Stmt<'ast>> {
             Stmt::ConstDecl(stmt) => stmt.codegen(compiler),
             Stmt::VarDecl(stmt) => stmt.codegen(compiler),
             Stmt::Assign(stmt) => stmt.codegen(compiler),
-            Stmt::If(stmt) => stmt.codegen(compiler),
+            Stmt::If(stmt) => {
+                let (any_no_term, exit_block) = stmt.codegen(compiler)?;
+                if !any_no_term {
+                    exit_block.remove_from_function().unwrap();
+                }
+                compiler.builder.position_at_end(exit_block);
+                Ok(())
+            }
             Stmt::While(stmt) => stmt.codegen(compiler),
             Stmt::Break((loc, _)) => {
                 let after = compiler.loops.last().map(|l| l.after).ok_or_else(|| {
@@ -322,7 +330,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
 }
 
 impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
-    type Out = ();
+    // 存在任意分支块不存在return
+    type Out = (bool, BasicBlock<'ctx>);
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
         let func = compiler
@@ -363,8 +372,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                 if compiler.no_terminator() {
                     compiler.builder.build_unconditional_branch(exit_block);
                 }
-                compiler.builder.position_at_end(exit_block);
-                Ok(())
+                Ok((true, exit_block))
             }
             IfStmt::IfElse(cond, then, else_) => {
                 let cond = match cond.codegen(compiler)? {
@@ -396,6 +404,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                 let then_block = compiler.ctx.append_basic_block(func, "if.then");
                 let else_block = compiler.ctx.append_basic_block(func, "if.else");
                 let exit_block = compiler.ctx.append_basic_block(func, "exit");
+                let mut any_no_term = false;
                 compiler
                     .builder
                     .build_conditional_branch(cond, then_block, else_block);
@@ -403,14 +412,15 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                 then.codegen(&mut compiler.guard())?;
                 if compiler.no_terminator() {
                     compiler.builder.build_unconditional_branch(exit_block);
+                    any_no_term = true;
                 }
                 compiler.builder.position_at_end(else_block);
                 else_.codegen(&mut compiler.guard())?;
                 if compiler.no_terminator() {
                     compiler.builder.build_unconditional_branch(exit_block);
+                    any_no_term = true;
                 }
-                compiler.builder.position_at_end(exit_block);
-                Ok(())
+                Ok((any_no_term, exit_block))
             }
             IfStmt::IfElseIf(cond, then, else_) => {
                 let func = compiler
@@ -441,22 +451,18 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                 };
                 let then_block = compiler.ctx.append_basic_block(func, "if.then");
                 let else_block = compiler.ctx.append_basic_block(func, "if.else");
-                let exit_block = compiler.ctx.append_basic_block(func, "exit");
                 compiler
                     .builder
                     .build_conditional_branch(cond, then_block, else_block);
+                compiler.builder.position_at_end(else_block);
+                let (mut any_no_term, exit_block) = else_.codegen(compiler)?;
                 compiler.builder.position_at_end(then_block);
                 then.codegen(&mut compiler.guard())?;
                 if compiler.no_terminator() {
                     compiler.builder.build_unconditional_branch(exit_block);
+                    any_no_term = true;
                 }
-                compiler.builder.position_at_end(else_block);
-                else_.codegen(compiler)?;
-                if compiler.no_terminator() {
-                    compiler.builder.build_unconditional_branch(exit_block);
-                }
-                compiler.builder.position_at_end(exit_block);
-                Ok(())
+                Ok((any_no_term, exit_block))
             }
         }
     }

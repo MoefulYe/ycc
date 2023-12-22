@@ -23,7 +23,7 @@ pub enum FileType {
     name = "ycc",
     version = "0.1.0",
     author = "ashenye",
-    about = "Ycc is Yet another miniC Compiler"
+    about = "Ycc is Yet another miniC toy Compiler"
 )]
 pub struct Cmd {
     input: PathBuf,
@@ -48,7 +48,11 @@ pub struct Cmd {
 impl Cmd {
     pub fn exec(self) -> miette::Result<()> {
         let code = read_to_string(File::open(&self.input).into_diagnostic()?).into_diagnostic()?;
-        let input = self.input.to_str().unwrap_or("unknown");
+        let input = self
+            .input
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
         let ast = match parse(&code) {
             Ok(ok) => ok,
             Err(err) => return Err(err.with_source_code(NamedSource::new(input, code))),
