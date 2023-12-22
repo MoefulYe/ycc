@@ -1,5 +1,5 @@
 use crate::{
-    compiler::{Compiler, Loop},
+    compiler::{Compiler},
     error::{CodeGenError, Result},
     ty::{ndim_arr_of, TryIntoFuncType, TryIntoLLVMType},
     val::TryIntoLLVMValue,
