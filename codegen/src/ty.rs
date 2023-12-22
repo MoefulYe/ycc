@@ -41,6 +41,19 @@ impl TryIntoLLVMType for Sourced<ast::PrimType> {
     }
 }
 
+pub trait GetElemType {
+    fn elem_type<'ctx>(&self, ctx: &'ctx Context) -> Result<BasicTypeEnum<'ctx>>;
+}
+
+impl GetElemType for Sourced<ast::Type> {
+    fn elem_type<'ctx>(&self, ctx: &'ctx Context) -> Result<BasicTypeEnum<'ctx>> {
+        match &self.1 {
+            ast::Type::Prim(_) => unreachable!(),
+            ast::Type::Array(prim, _) => prim.llvm_type(ctx),
+        }
+    }
+}
+
 pub fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
     let mut it = dims.iter().rev();
     let &size = it.next().unwrap();
@@ -60,9 +73,9 @@ impl<'ast> TryIntoFuncType for Sourced<ast::FuncProto<'ast>> {
             ident: _,
             params: (_, params),
         } = this;
-        let params = params.iter().fold(
-            Ok(vec![]),
-            |acc,
+        let params = params.iter().try_fold(
+            vec![],
+            |mut acc,
              (
                 _,
                 FuncParam {
@@ -70,29 +83,22 @@ impl<'ast> TryIntoFuncType for Sourced<ast::FuncProto<'ast>> {
                     ident: _,
                 },
             )| {
-                match acc {
-                    Ok(mut ok) => {
-                        let ty = match ty {
-                            ast::Type::Prim(prim) => {
-                                BasicMetadataTypeEnum::from(prim.llvm_type(ctx)?)
-                            }
-                            ast::Type::Array(prim, (dims_loc, dims)) => {
-                                if illegal(dims) {
-                                    return Err(CodeGenError::IllegalArraySize {
-                                        loc: dims_loc.to_owned(),
-                                    });
-                                } else {
-                                    BasicMetadataTypeEnum::from(
-                                        prim.llvm_type(ctx)?.ptr_type(AddressSpace::default()),
-                                    )
-                                }
-                            }
-                        };
-                        ok.push(ty);
-                        Ok(ok)
+                let ty = match ty {
+                    ast::Type::Prim(prim) => BasicMetadataTypeEnum::from(prim.llvm_type(ctx)?),
+                    ast::Type::Array(prim, (dims_loc, dims)) => {
+                        if illegal(dims) {
+                            return Err(CodeGenError::IllegalArraySize {
+                                loc: dims_loc.to_owned(),
+                            });
+                        } else {
+                            BasicMetadataTypeEnum::from(
+                                prim.llvm_type(ctx)?.ptr_type(AddressSpace::default()),
+                            )
+                        }
                     }
-                    Err(err) => Err(err),
-                }
+                };
+                acc.push(ty);
+                Ok(acc)
             },
         )?;
         let fn_type = match ty {

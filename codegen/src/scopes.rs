@@ -1,47 +1,26 @@
 use inkwell::{
     types::BasicTypeEnum,
-    values::{BasicValue, BasicValueEnum, FloatValue, IntValue, PointerValue},
+    values::{BasicValueEnum, PointerValue},
 };
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Symbol<'ctx> {
     Const(BasicValueEnum<'ctx>),
-    Var {
-        addr: PointerValue<'ctx>,
-        llvm_ty: BasicTypeEnum<'ctx>,
-        origin_ty: BasicTypeEnum<'ctx>,
+    PrimMut {
+        ptr: PointerValue<'ctx>,
+        pointee_ty: BasicTypeEnum<'ctx>,
     },
-}
-
-impl<'ctx, T: Into<BasicTypeEnum<'ctx>>, U: Into<BasicTypeEnum<'ctx>>>
-    From<(PointerValue<'ctx>, T, U)> for Symbol<'ctx>
-{
-    fn from((addr, ty, origin): (PointerValue<'ctx>, T, U)) -> Self {
-        Self::Var {
-            addr,
-            llvm_ty: ty.into(),
-            origin_ty: origin.into(),
-        }
-    }
-}
-
-impl<'ctx> From<BasicValueEnum<'ctx>> for Symbol<'ctx> {
-    fn from(value: BasicValueEnum<'ctx>) -> Self {
-        Self::Const(value)
-    }
-}
-
-impl<'ctx> From<IntValue<'ctx>> for Symbol<'ctx> {
-    fn from(value: IntValue<'ctx>) -> Self {
-        Self::Const(value.as_basic_value_enum())
-    }
-}
-
-impl<'ctx> From<FloatValue<'ctx>> for Symbol<'ctx> {
-    fn from(value: FloatValue<'ctx>) -> Self {
-        Self::Const(value.as_basic_value_enum())
-    }
+    ArrMut {
+        ptr: PointerValue<'ctx>,
+        elem_ty: BasicTypeEnum<'ctx>,
+        pointee_ty: BasicTypeEnum<'ctx>,
+    },
+    ArrImmut {
+        ptr: PointerValue<'ctx>,
+        elem_ty: BasicTypeEnum<'ctx>,
+        pointee_ty: BasicTypeEnum<'ctx>,
+    },
 }
 
 #[derive(Debug)]

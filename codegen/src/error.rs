@@ -1,5 +1,3 @@
-
-
 use ast::Loc;
 use miette::Diagnostic;
 use thiserror::Error;
@@ -120,16 +118,20 @@ pub enum CodeGenError {
         #[label("illegal array initializer used")]
         loc: Loc,
     },
-    #[error("illegal index access for type `{ty}`")]
-    #[diagnostic(code(CodeGenError::IllegalIndexAccess))]
-    IllegalIndexAccess {
-        #[label("illegal index access for type `{ty}`")]
-        loc: Loc,
-        ty: String,
-    },
+    // #[error("illegal index access for type `{ty}`")]
+    // #[diagnostic(code(CodeGenError::IllegalIndexAccess))]
+    // IllegalIndexAccess {
+    //     #[label("illegal index access for type `{ty}`")]
+    //     loc: Loc,
+    //     ty: String,
+    // },
     #[error("unknown error")]
     #[diagnostic(code(CodeGenError::Unknown))]
-    Unknown,
+    Unknown {
+        #[label("{msg}")]
+        loc: Loc,
+        msg: String,
+    },
     //把常量作为左值使用
     #[error("constant `{ident}` cannot be used as left value")]
     #[diagnostic(code(CodeGenError::ConstantAsLeftValue))]
@@ -137,5 +139,39 @@ pub enum CodeGenError {
         #[label("constant `{ident}` cannot be used as left value")]
         loc: Loc,
         ident: String,
+    },
+    #[error("immutable `{ident}` cannot be used as left value")]
+    #[diagnostic(code(CodeGenError::ImmutableAsLeftValue))]
+    ImmutableAsLeftValue {
+        #[label("immutable `{ident}` cannot be used as left value")]
+        loc: Loc,
+        ident: String,
+    },
+    #[error("array must be indexed by interger")]
+    #[diagnostic(code(CodeGenError::ArrayIndexMustBeInteger))]
+    ArrayIndexMustBeInteger {
+        #[label("found type `{ty}`")]
+        loc: Loc,
+        ty: String,
+    },
+    #[error("constant `{ident}` cannot be indexed")]
+    #[diagnostic(code(CodeGenError::ConstantCannotBeIndexed))]
+    ConstantCannotBeIndexed {
+        #[label("constant `{ident}` cannot be indexed")]
+        loc: Loc,
+        ident: String,
+    },
+    #[error("array is not assignable")]
+    #[diagnostic(code(CodeGenError::ArrayIsNotAssignable))]
+    ArrayIsNotAssignable {
+        #[label("array is not assignable")]
+        loc: Loc,
+    },
+    #[error("type `{ty}` cannot be indexed")]
+    #[diagnostic(code(CodeGenError::TypeCannotBeIndexed))]
+    TypeCannotBeIndexed {
+        #[label("type `{ty}` cannot be indexed")]
+        loc: Loc,
+        ty: String,
     },
 }

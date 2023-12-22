@@ -4,3 +4,4 @@ mod gen;
 mod scopes;
 mod ty;
 mod val;
+pub mod util;

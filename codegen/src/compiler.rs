@@ -33,6 +33,7 @@ pub struct Compiler<'ast, 'ctx> {
     pub builder: Builder<'ctx>,
     pub(crate) scopes: Scopes<'ast, 'ctx>,
     pub(crate) loops: Vec<Loop<'ctx>>,
+    pub(crate) current_fn: Option<&'ast str>,
 }
 
 impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
@@ -43,6 +44,7 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
             builder: ctx.create_builder(),
             scopes: Scopes::new(),
             loops: vec![],
+            current_fn: None,
         }
     }
 

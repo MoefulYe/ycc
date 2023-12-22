@@ -107,24 +107,19 @@ fn handle_array_int<'ctx>(
                 loc: arr[size as usize].0,
             });
         }
-        let mut res = arr
-            .iter()
-            .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
-                Ok(mut ok) => {
-                    if let Literal::Int(val) = lit {
-                        let val = type_.const_int(*val as u64, false);
-                        ok.push(val);
-                        Ok(ok)
-                    } else {
-                        Err(CodeGenError::TypeMismatch {
-                            expected: "int".to_string(),
-                            found: lit.type_str().to_string(),
-                            found_loc: *lit_loc,
-                        })
-                    }
-                }
-                Err(err) => Err(err),
-            })?;
+        let mut res = arr.iter().try_fold(vec![], |mut acc, (lit_loc, lit)| {
+            if let Literal::Int(val) = lit {
+                let val = type_.const_int(*val as u64, false);
+                acc.push(val);
+                Ok(acc)
+            } else {
+                Err(CodeGenError::TypeMismatch {
+                    expected: "int".to_string(),
+                    found: lit.type_str().to_string(),
+                    found_loc: *lit_loc,
+                })
+            }
+        })?;
         (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
         let arr_val = type_.const_array(&res);
         Ok((arr_ty, arr_val))
@@ -149,24 +144,21 @@ fn handle_array_int<'ctx>(
                     found_loc: *first_loc,
                 });
             };
-            let mut val =
-                arr.iter()
-                    .skip(1)
-                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
-                        Ok(mut ok) => match item {
-                            Literal::List(arr) => {
-                                let (_, val) = handle_array_int(arr, type_, dims, prim_loc)?;
-                                ok.push(val);
-                                Ok(ok)
-                            }
-                            _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array".to_string(),
-                                found: item.type_str().to_string(),
-                                found_loc: *loc,
-                            }),
-                        },
-                        Err(err) => Err(err),
-                    })?;
+            let mut val = arr
+                .iter()
+                .skip(1)
+                .try_fold(vec![first], |mut acc, (loc, item)| match item {
+                    Literal::List(arr) => {
+                        let (_, val) = handle_array_int(arr, type_, dims, prim_loc)?;
+                        acc.push(val);
+                        Ok(acc)
+                    }
+                    _ => Err(CodeGenError::TypeMismatch {
+                        expected: "array".to_string(),
+                        found: item.type_str().to_string(),
+                        found_loc: *loc,
+                    }),
+                })?;
             (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
             let ty = ty.array_type(size);
             let val = ty.const_array(&val);
@@ -191,24 +183,19 @@ fn handle_array_bool<'ctx>(
                 loc: arr[size as usize].0,
             });
         }
-        let mut res = arr
-            .iter()
-            .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
-                Ok(mut ok) => {
-                    if let Literal::Bool(val) = lit {
-                        let val = type_.const_int(*val as u64, false);
-                        ok.push(val);
-                        Ok(ok)
-                    } else {
-                        Err(CodeGenError::TypeMismatch {
-                            expected: "bool".to_string(),
-                            found: lit.type_str().to_string(),
-                            found_loc: *lit_loc,
-                        })
-                    }
-                }
-                Err(err) => Err(err),
-            })?;
+        let mut res = arr.iter().try_fold(vec![], |mut acc, (lit_loc, lit)| {
+            if let Literal::Bool(val) = lit {
+                let val = type_.const_int(*val as u64, false);
+                acc.push(val);
+                Ok(acc)
+            } else {
+                Err(CodeGenError::TypeMismatch {
+                    expected: "bool".to_string(),
+                    found: lit.type_str().to_string(),
+                    found_loc: *lit_loc,
+                })
+            }
+        })?;
         (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
         let arr_val = type_.const_array(&res);
         Ok((arr_ty, arr_val))
@@ -233,24 +220,21 @@ fn handle_array_bool<'ctx>(
                     found_loc: *first_loc,
                 });
             };
-            let mut val =
-                arr.iter()
-                    .skip(1)
-                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
-                        Ok(mut ok) => match item {
-                            Literal::List(arr) => {
-                                let (_, val) = handle_array_bool(arr, type_, dims, prim_loc)?;
-                                ok.push(val);
-                                Ok(ok)
-                            }
-                            _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array".to_string(),
-                                found: item.type_str().to_string(),
-                                found_loc: *loc,
-                            }),
-                        },
-                        Err(err) => Err(err),
-                    })?;
+            let mut val = arr
+                .iter()
+                .skip(1)
+                .try_fold(vec![first], |mut acc, (loc, item)| match item {
+                    Literal::List(arr) => {
+                        let (_, val) = handle_array_bool(arr, type_, dims, prim_loc)?;
+                        acc.push(val);
+                        Ok(acc)
+                    }
+                    _ => Err(CodeGenError::TypeMismatch {
+                        expected: "array".to_string(),
+                        found: item.type_str().to_string(),
+                        found_loc: *loc,
+                    }),
+                })?;
             (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
             let ty = ty.array_type(size);
             let val = ty.const_array(&val);
@@ -275,24 +259,19 @@ fn handle_array_float<'ctx>(
                 loc: arr[size as usize].0,
             });
         }
-        let mut res = arr
-            .iter()
-            .fold(Ok(vec![]), |acc, (lit_loc, lit)| match acc {
-                Ok(mut ok) => {
-                    if let Literal::Float(val) = lit {
-                        let val = type_.const_float(*val as f64);
-                        ok.push(val);
-                        Ok(ok)
-                    } else {
-                        Err(CodeGenError::TypeMismatch {
-                            expected: "float".to_string(),
-                            found: lit.type_str().to_string(),
-                            found_loc: *lit_loc,
-                        })
-                    }
-                }
-                Err(err) => Err(err),
-            })?;
+        let mut res = arr.iter().try_fold(vec![], |mut acc, (lit_loc, lit)| {
+            if let Literal::Float(val) = lit {
+                let val = type_.const_float(*val as f64);
+                acc.push(val);
+                Ok(acc)
+            } else {
+                Err(CodeGenError::TypeMismatch {
+                    expected: "float".to_string(),
+                    found: lit.type_str().to_string(),
+                    found_loc: *lit_loc,
+                })
+            }
+        })?;
         (arr.len()..size as usize).for_each(|_| res.push(type_.const_zero()));
         let arr_val = type_.const_array(&res);
         Ok((arr_ty, arr_val))
@@ -317,24 +296,21 @@ fn handle_array_float<'ctx>(
                     found_loc: *first_loc,
                 });
             };
-            let mut val =
-                arr.iter()
-                    .skip(1)
-                    .fold(Ok(vec![first]), |acc, (loc, item)| match acc {
-                        Ok(mut ok) => match item {
-                            Literal::List(arr) => {
-                                let (_, val) = handle_array_float(arr, type_, dims, prim_loc)?;
-                                ok.push(val);
-                                Ok(ok)
-                            }
-                            _ => Err(CodeGenError::TypeMismatch {
-                                expected: "array".to_string(),
-                                found: item.type_str().to_string(),
-                                found_loc: *loc,
-                            }),
-                        },
-                        Err(err) => Err(err),
-                    })?;
+            let mut val = arr
+                .iter()
+                .skip(1)
+                .try_fold(vec![first], |mut acc, (loc, item)| match item {
+                    Literal::List(arr) => {
+                        let (_, val) = handle_array_float(arr, type_, dims, prim_loc)?;
+                        acc.push(val);
+                        Ok(acc)
+                    }
+                    _ => Err(CodeGenError::TypeMismatch {
+                        expected: "array".to_string(),
+                        found: item.type_str().to_string(),
+                        found_loc: *loc,
+                    }),
+                })?;
             (arr.len()..size as usize).for_each(|_| val.push(ty.const_zero()));
             let ty = ty.array_type(size);
             let val = ty.const_array(&val);

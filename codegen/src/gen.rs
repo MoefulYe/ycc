@@ -1,7 +1,9 @@
 use crate::{
-    compiler::{Compiler},
+    compiler::Compiler,
     error::{CodeGenError, Result},
-    ty::{ndim_arr_of, TryIntoFuncType, TryIntoLLVMType},
+    scopes::Symbol::*,
+    ty::{ndim_arr_of, GetElemType, TryIntoFuncType, TryIntoLLVMType},
+    util::prefix,
     val::TryIntoLLVMValue,
 };
 use ast::{
@@ -56,24 +58,42 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<ConstDecl<'ast>> {
             ident: (loc, ident),
             init,
         } = this;
-        let val = match init.llvm_value(ty, compiler.ctx)? {
+        match init.llvm_value(ty, compiler.ctx)? {
             inkwell::values::BasicValueEnum::ArrayValue(val) => {
-                let ty = val.get_type();
-                let arr = compiler
-                    .module
-                    .add_global(ty, Some(AddressSpace::default()), ident);
+                let elem_ty = ty.elem_type(compiler.ctx)?;
+                let pointee_ty = val.get_type().as_basic_type_enum();
+                let arr = compiler.module.add_global(
+                    pointee_ty,
+                    Some(AddressSpace::default()),
+                    &compiler
+                        .current_fn
+                        .map(|_| prefix(ident))
+                        .unwrap_or(ident.to_string()),
+                );
+                let ptr = arr.as_pointer_value();
                 arr.set_constant(true);
                 arr.set_initializer(&val);
-                arr.as_basic_value_enum()
+                compiler
+                    .new_symbol(
+                        ident,
+                        ArrImmut {
+                            ptr,
+                            elem_ty,
+                            pointee_ty,
+                        },
+                    )
+                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                        loc: loc.to_owned(),
+                        ident: ident.to_string(),
+                    })
             }
-            val => val,
-        };
-        compiler
-            .new_symbol(ident, val)
-            .map_err(|_| CodeGenError::DuplicateIdentifier {
-                loc: loc.to_owned(),
-                ident: ident.to_string(),
-            })
+            val => compiler.new_symbol(ident, Const(val)).map_err(|_| {
+                CodeGenError::DuplicateIdentifier {
+                    loc: loc.to_owned(),
+                    ident: ident.to_string(),
+                }
+            }),
+        }
     }
 }
 
@@ -90,27 +110,55 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<GlobalVarDecl<'ast>> {
         match init {
             Some(init) => {
                 let val = init.llvm_value(ty, compiler.ctx)?;
-                let ty = val.get_type();
-                let global = compiler.module.add_global(ty, None, ident);
+                let pointee_ty = val.get_type();
+                let global =
+                    compiler
+                        .module
+                        .add_global(pointee_ty, Some(AddressSpace::default()), ident);
                 global.set_initializer(&val);
-                compiler
-                    .scopes
-                    .insert(ident, (global.as_pointer_value(), ty, ty))
-                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                let symbol = if pointee_ty.is_array_type() {
+                    ArrMut {
+                        ptr: global.as_pointer_value(),
+                        elem_ty: ty.elem_type(compiler.ctx)?,
+                        pointee_ty,
+                    }
+                } else {
+                    PrimMut {
+                        ptr: global.as_pointer_value(),
+                        pointee_ty,
+                    }
+                };
+                compiler.scopes.insert(ident, symbol).map_err(|_| {
+                    CodeGenError::DuplicateIdentifier {
                         loc: loc.to_owned(),
                         ident: ident.to_string(),
-                    })
+                    }
+                })
             }
             None => {
-                let ty = ty.llvm_type(compiler.ctx)?;
-                let global = compiler.module.add_global(ty, None, ident);
-                compiler
-                    .scopes
-                    .insert(ident, global.as_basic_value_enum())
-                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                let pointee_ty = ty.llvm_type(compiler.ctx)?;
+                let global =
+                    compiler
+                        .module
+                        .add_global(pointee_ty, Some(AddressSpace::default()), ident);
+                let symbol = if pointee_ty.is_array_type() {
+                    ArrMut {
+                        ptr: global.as_pointer_value(),
+                        elem_ty: ty.elem_type(compiler.ctx)?,
+                        pointee_ty,
+                    }
+                } else {
+                    PrimMut {
+                        ptr: global.as_pointer_value(),
+                        pointee_ty,
+                    }
+                };
+                compiler.scopes.insert(ident, symbol).map_err(|_| {
+                    CodeGenError::DuplicateIdentifier {
                         loc: loc.to_owned(),
                         ident: ident.to_string(),
-                    })
+                    }
+                })
             }
         }
     }
@@ -157,40 +205,44 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
                 compiler.module.add_function(ident, fn_type, None)
             }
         };
-        let mut compiler = compiler.guard();
+        compiler.current_fn = Some(ident);
+        let compiler = &mut compiler.guard();
         let entry = compiler.ctx.append_basic_block(func, "entry");
         compiler.builder.position_at_end(entry);
 
         for (idx, (_, param)) in proto.1.params.1.iter().enumerate() {
-            let (_, ty) = &param.ty;
             let (ident_loc, ident) = &param.ident;
-            let (llvm_ty, origin_ty) = match ty {
-                ast::Type::Prim(prim) => {
-                    let ty = prim.llvm_type(compiler.ctx)?.as_basic_type_enum();
-                    (ty, ty)
-                }
-                ast::Type::Array(prim, dims) => {
-                    let ty = prim.llvm_type(compiler.ctx)?;
-                    let llvm_ty = ty.ptr_type(AddressSpace::default()).as_basic_type_enum();
-                    let origin_ty = ndim_arr_of(ty, &dims.1).as_basic_type_enum();
-                    (llvm_ty, origin_ty)
-                }
+            let ty = match &param.ty.1 {
+                ast::Type::Prim(prim) => prim.llvm_type(compiler.ctx)?.as_basic_type_enum(),
+                ast::Type::Array(prim, _) => prim
+                    .llvm_type(compiler.ctx)?
+                    .ptr_type(AddressSpace::default())
+                    .as_basic_type_enum(),
             };
-
-            let ptr = compiler.builder.build_alloca(llvm_ty, ident);
+            let ptr = compiler.builder.build_alloca(ty, ident);
             let val = func.get_nth_param(idx as u32).unwrap();
             val.set_name(ident);
             compiler.builder.build_store(ptr, val);
-            compiler
-                .scopes
-                .insert(ident, (ptr, llvm_ty, origin_ty))
-                .map_err(|_| CodeGenError::DuplicateIdentifier {
+            let pointee_ty = param.ty.llvm_type(compiler.ctx)?;
+            let symbol = if pointee_ty.is_array_type() {
+                ArrMut {
+                    ptr,
+                    elem_ty: param.ty.elem_type(compiler.ctx)?,
+                    pointee_ty,
+                }
+            } else {
+                PrimMut { ptr, pointee_ty }
+            };
+            compiler.scopes.insert(ident, symbol).map_err(|_| {
+                CodeGenError::DuplicateIdentifier {
                     loc: ident_loc.to_owned(),
                     ident: ident.to_string(),
-                })?;
+                }
+            })?;
         }
 
         body.codegen(&mut compiler.guard())?;
+        compiler.current_fn = None;
         if !func.verify(true) {
             Err(CodeGenError::VerifyFunction {
                 loc: func_loc.to_owned(),
@@ -269,26 +321,73 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<VarDecl<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        let (_, this) = self;
+        let (loc, this) = self;
         let VarDecl { ty, ident, init } = this;
         match &ty.1 {
             ast::Type::Prim(ty) => {
-                let ty = ty.llvm_type(compiler.ctx)?;
-                let ptr = compiler.builder.build_alloca(ty, ident.1);
-                compiler
-                    .scopes
-                    .insert(ident.1, (ptr, ty, ty))
-                    .map_err(|_| CodeGenError::DuplicateIdentifier {
+                let pointee_ty = ty.llvm_type(compiler.ctx)?;
+                let ptr = compiler.builder.build_alloca(pointee_ty, ident.1);
+                let symbol = PrimMut { ptr, pointee_ty };
+                compiler.scopes.insert(ident.1, symbol).map_err(|_| {
+                    CodeGenError::DuplicateIdentifier {
                         loc: ident.0,
                         ident: ident.1.to_string(),
-                    })?;
+                    }
+                })?;
                 if let Some(init) = init {
                     let val = init.codegen(compiler)?;
                     compiler.builder.build_store(ptr, val);
                 }
                 Ok(())
             }
-            ast::Type::Array(_, _) => todo!(),
+            ast::Type::Array(prim, (_, dims)) => {
+                let elem_ty = prim.llvm_type(compiler.ctx)?;
+                let pointee_ty = ndim_arr_of(elem_ty, dims).as_basic_type_enum();
+                let ptr = compiler.builder.build_alloca(pointee_ty, ident.1);
+                if let Some((init_loc, init)) = init {
+                    let src = compiler.module.add_global(
+                        pointee_ty,
+                        Some(AddressSpace::default()),
+                        &prefix(ident.1),
+                    );
+                    let init = if let Expr::Prim((_, PrimExpr::Literal(lit))) = init {
+                        lit.llvm_value(ty, compiler.ctx)?
+                    } else {
+                        return Err(CodeGenError::IllegalArrayInitializer {
+                            loc: init_loc.to_owned(),
+                        });
+                    };
+                    src.set_linkage(inkwell::module::Linkage::Private);
+                    src.set_unnamed_addr(true);
+                    src.set_visibility(inkwell::GlobalVisibility::Hidden);
+                    src.set_constant(true);
+                    src.set_initializer(&init);
+                    compiler
+                        .builder
+                        .build_memcpy(
+                            ptr,
+                            4,
+                            src.as_pointer_value(),
+                            4,
+                            pointee_ty.size_of().unwrap(),
+                        )
+                        .map_err(|err| CodeGenError::Unknown {
+                            loc: loc.to_owned(),
+                            msg: err.to_string(),
+                        })?;
+                }
+                let symbol = ArrMut {
+                    ptr,
+                    elem_ty,
+                    pointee_ty,
+                };
+                compiler.scopes.insert(ident.1, symbol).map_err(|_| {
+                    CodeGenError::DuplicateIdentifier {
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
+                    }
+                })
+            }
         }
     }
 }
@@ -297,34 +396,89 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
     type Out = ();
 
     fn codegen(&'ast self, compiler: &mut Compiler<'ast, 'ctx>) -> Result<Self::Out> {
-        let (loc, this) = self;
+        let (_, this) = self;
         let AssignStmt { lhs, rhs } = this;
         match &lhs.1 {
             LValue::Ident(ident) => {
-                let (addr, _llvm_ty, _origin_ty) =
-                    match compiler.scopes.find(ident.1).ok_or_else(|| {
-                        CodeGenError::UnresolvedIdentifier {
+                let ptr = match compiler.scopes.find(ident.1).ok_or_else(|| {
+                    CodeGenError::UnresolvedIdentifier {
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
+                    }
+                })? {
+                    Const(_) => {
+                        return Err(CodeGenError::ConstantAsLeftValue {
                             loc: ident.0,
                             ident: ident.1.to_string(),
-                        }
-                    })? {
-                        crate::scopes::Symbol::Const(_) => {
-                            return Err(CodeGenError::ConstantAsLeftValue {
-                                loc: loc.to_owned(),
-                                ident: ident.1.to_string(),
-                            })
-                        }
-                        crate::scopes::Symbol::Var {
-                            addr,
-                            llvm_ty,
-                            origin_ty,
-                        } => (addr, llvm_ty, origin_ty),
-                    };
+                        })
+                    }
+                    PrimMut { ptr, .. } => ptr,
+                    ArrMut { .. } => {
+                        return Err(CodeGenError::ArrayIsNotAssignable { loc: ident.0 })
+                    }
+                    ArrImmut { .. } => {
+                        return Err(CodeGenError::ImmutableAsLeftValue {
+                            loc: ident.0,
+                            ident: ident.1.to_string(),
+                        })
+                    }
+                };
                 let val = rhs.codegen(compiler)?;
-                compiler.builder.build_store(addr, val);
+                compiler.builder.build_store(ptr, val);
                 Ok(())
             }
-            LValue::Idx(_, _) => todo!(),
+            LValue::Idx(ident, idxs) => {
+                let (ptr, _, pointee_ty) = match compiler.scopes.find(ident.1).ok_or_else(|| {
+                    CodeGenError::UnresolvedIdentifier {
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
+                    }
+                })? {
+                    Const(_) => {
+                        return Err(CodeGenError::ConstantAsLeftValue {
+                            loc: ident.0,
+                            ident: ident.1.to_string(),
+                        })
+                    }
+                    PrimMut { pointee_ty, .. } => {
+                        return Err(CodeGenError::TypeCannotBeIndexed {
+                            loc: ident.0,
+                            ty: pointee_ty.to_string(),
+                        })
+                    }
+                    ArrMut {
+                        ptr,
+                        elem_ty,
+                        pointee_ty,
+                    } => (ptr, elem_ty, pointee_ty),
+                    ArrImmut { .. } => {
+                        return Err(CodeGenError::ImmutableAsLeftValue {
+                            loc: ident.0,
+                            ident: ident.1.to_string(),
+                        })
+                    }
+                };
+                let idxs = idxs.iter().try_fold(vec![], |mut acc, expr| {
+                    match expr.codegen(compiler)? {
+                        BasicValueEnum::IntValue(val) => {
+                            acc.push(val);
+                            Ok(acc)
+                        }
+                        val => Err(CodeGenError::ArrayIndexMustBeInteger {
+                            loc: expr.0,
+                            ty: val.get_type().to_string(),
+                        }),
+                    }
+                })?;
+                let elem = unsafe {
+                    compiler
+                        .builder
+                        .build_in_bounds_gep(pointee_ty, ptr, &idxs, "array_access")
+                };
+                let rhs = rhs.codegen(compiler)?;
+                compiler.builder.build_store(elem, rhs);
+                Ok(())
+            }
         }
     }
 }
@@ -348,21 +502,21 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                             val
                         } else {
                             return Err(CodeGenError::TypeMismatch {
-                                expected: "bool".to_string(),
-                                found: "int".to_string(),
+                                expected: "\"i1\"".to_string(),
+                                found: "\"i32\"".to_string(),
                                 found_loc: cond.0,
                             });
                         }
                     }
                     val => {
                         return Err(CodeGenError::TypeMismatch {
-                            expected: "bool".to_owned(),
+                            expected: "\"i1\"".to_owned(),
                             found: val.get_type().to_string(),
                             found_loc: cond.0,
                         })
                     }
                 };
-                let then_block = compiler.ctx.append_basic_block(func, "if.then");
+                let then_block = compiler.ctx.append_basic_block(func, "then");
                 let exit_block = compiler.ctx.append_basic_block(func, "exit");
                 compiler
                     .builder
@@ -381,15 +535,15 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                             val
                         } else {
                             return Err(CodeGenError::TypeMismatch {
-                                expected: "bool".to_string(),
-                                found: "int".to_string(),
+                                expected: "\"i1\"".to_string(),
+                                found: "\"i32\"".to_string(),
                                 found_loc: cond.0,
                             });
                         }
                     }
                     val => {
                         return Err(CodeGenError::TypeMismatch {
-                            expected: "bool".to_string(),
+                            expected: "\"i1\"".to_string(),
                             found: val.get_type().to_string(),
                             found_loc: cond.0,
                         })
@@ -401,8 +555,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                     .unwrap()
                     .get_parent()
                     .unwrap();
-                let then_block = compiler.ctx.append_basic_block(func, "if.then");
-                let else_block = compiler.ctx.append_basic_block(func, "if.else");
+                let then_block = compiler.ctx.append_basic_block(func, "then");
+                let else_block = compiler.ctx.append_basic_block(func, "else");
                 let exit_block = compiler.ctx.append_basic_block(func, "exit");
                 let mut any_no_term = false;
                 compiler
@@ -435,22 +589,22 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<IfStmt<'ast>> {
                             val
                         } else {
                             return Err(CodeGenError::TypeMismatch {
-                                expected: "bool".to_string(),
-                                found: "int".to_string(),
+                                expected: "\"i1\"".to_string(),
+                                found: "\"i32\"".to_string(),
                                 found_loc: cond.0,
                             });
                         }
                     }
                     val => {
                         return Err(CodeGenError::TypeMismatch {
-                            expected: "bool".to_string(),
+                            expected: "\"i1\"".to_string(),
                             found: val.get_type().to_string(),
                             found_loc: cond.0,
                         })
                     }
                 };
-                let then_block = compiler.ctx.append_basic_block(func, "if.then");
-                let else_block = compiler.ctx.append_basic_block(func, "if.else");
+                let then_block = compiler.ctx.append_basic_block(func, "then");
+                let else_block = compiler.ctx.append_basic_block(func, "else");
                 compiler
                     .builder
                     .build_conditional_branch(cond, then_block, else_block);
@@ -478,9 +632,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
             .unwrap()
             .get_parent()
             .unwrap();
-        let head = compiler.ctx.append_basic_block(func, "while.head");
-        let body = compiler.ctx.append_basic_block(func, "while.body");
-        let after = compiler.ctx.append_basic_block(func, "while.after");
+        let head = compiler.ctx.append_basic_block(func, "head");
+        let body = compiler.ctx.append_basic_block(func, "loop");
+        let after = compiler.ctx.append_basic_block(func, "after");
         let compiler = &mut compiler.guard_loop(head, after);
         compiler.builder.build_unconditional_branch(head);
         compiler.builder.position_at_end(head);
@@ -490,15 +644,15 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<WhileStmt<'ast>> {
                     val
                 } else {
                     return Err(CodeGenError::TypeMismatch {
-                        expected: "bool".to_owned(),
-                        found: "int".to_owned(),
+                        expected: "\"i1\"".to_owned(),
+                        found: "\"i32\"".to_owned(),
                         found_loc: self.1.cond.0,
                     });
                 }
             }
             val => {
                 return Err(CodeGenError::TypeMismatch {
-                    expected: "bool".to_owned(),
+                    expected: "\"i1\"".to_owned(),
                     found: val.get_type().to_string(),
                     found_loc: self.1.cond.0,
                 })
@@ -572,42 +726,59 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                     }
                 })?;
                 match symbol {
-                    crate::scopes::Symbol::Const(val) => {
-                        if val.is_array_value() {
-                            todo!()
-                        } else {
-                            Ok(val)
-                        }
+                    Const(val) => Ok(val),
+                    PrimMut { ptr, pointee_ty } => {
+                        Ok(compiler.builder.build_load(pointee_ty, ptr, "load"))
                     }
-                    crate::scopes::Symbol::Var {
-                        addr,
-                        llvm_ty: _,
-                        origin_ty,
-                    } => {
-                        if origin_ty.is_array_type() {
-                            Err(CodeGenError::IllegalArrayInitializer {
-                                loc: loc.to_owned(),
-                            })
-                        } else {
-                            Ok(compiler.builder.build_load(origin_ty, addr, "load"))
-                        }
-                    }
+                    ArrMut { ptr, .. } => Ok(ptr.as_basic_value_enum()),
+                    ArrImmut { ptr, .. } => Ok(ptr.as_basic_value_enum()),
                 }
             }
-            LValue::Idx((ident_loc, ident), _idxs) => {
-                let symbol = compiler.scopes.find(ident).ok_or_else(|| {
+            LValue::Idx(ident, idxs) => {
+                let symbol = compiler.scopes.find(ident.1).ok_or_else(|| {
                     CodeGenError::UnresolvedIdentifier {
-                        loc: ident_loc.to_owned(),
-                        ident: ident.to_string(),
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
                     }
                 })?;
                 match symbol {
-                    crate::scopes::Symbol::Const(_val) => todo!(),
-                    crate::scopes::Symbol::Var {
-                        addr: _,
-                        llvm_ty: _,
-                        origin_ty: _,
-                    } => todo!(),
+                    Const(_) => Err(CodeGenError::ConstantCannotBeIndexed {
+                        loc: ident.0,
+                        ident: ident.1.to_string(),
+                    }),
+                    PrimMut { pointee_ty, .. } => Err(CodeGenError::TypeCannotBeIndexed {
+                        loc: ident.0,
+                        ty: pointee_ty.to_string(),
+                    }),
+                    ArrMut {
+                        ptr,
+                        elem_ty,
+                        pointee_ty,
+                    }
+                    | ArrImmut {
+                        ptr,
+                        elem_ty,
+                        pointee_ty,
+                    } => {
+                        let idxs = idxs.iter().try_fold(vec![], |mut acc, expr| {
+                            match expr.codegen(compiler)? {
+                                BasicValueEnum::IntValue(val) => {
+                                    acc.push(val);
+                                    Ok(acc)
+                                }
+                                val => Err(CodeGenError::ArrayIndexMustBeInteger {
+                                    loc: expr.0,
+                                    ty: val.get_type().to_string(),
+                                }),
+                            }
+                        })?;
+                        let elem = unsafe {
+                            compiler
+                                .builder
+                                .build_in_bounds_gep(pointee_ty, ptr, &idxs, "gep")
+                        };
+                        Ok(compiler.builder.build_load(elem_ty, elem, "load"))
+                    }
                 }
             }
         }
@@ -686,7 +857,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Unary<'ast>> {
                         Err(CodeGenError::IllegalUnaryOperator {
                             loc: op_loc.to_owned(),
                             op: op.to_string(),
-                            ty: "int".to_owned(),
+                            ty: "\"i32\"".to_owned(),
                         })
                     }
                 }
@@ -739,8 +910,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
                             loc_rhs: rhs_loc.to_owned(),
                             loc_op: op_loc.to_owned(),
                             op: op.to_string(),
-                            lhs: "int".to_owned(),
-                            rhs: "int".to_owned(),
+                            lhs: "\"i32\"".to_owned(),
+                            rhs: "\"i32\"".to_owned(),
                         })
                     }
                 }
@@ -756,8 +927,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
                             loc_rhs: rhs_loc.to_owned(),
                             loc_op: op_loc.to_owned(),
                             op: op.to_string(),
-                            lhs: "int".to_owned(),
-                            rhs: "int".to_owned(),
+                            lhs: "\"i32\"".to_owned(),
+                            rhs: "\"i32\"".to_owned(),
                         })
                     }
                 }
@@ -876,8 +1047,8 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<Binary<'ast>> {
                     loc_rhs: rhs_loc.to_owned(),
                     loc_op: op_loc.to_owned(),
                     op: op.to_string(),
-                    lhs: "float".to_owned(),
-                    rhs: "float".to_owned(),
+                    lhs: "\"f32\"".to_owned(),
+                    rhs: "\"f32\"".to_owned(),
                 }),
             },
             (lhs, rhs) => Err(CodeGenError::IllegalBinaryOperator {

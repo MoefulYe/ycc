@@ -216,6 +216,7 @@ dependencies = [
  "inkwell",
  "llvm-sys",
  "miette",
+ "rand",
  "thiserror",
 ]
 
