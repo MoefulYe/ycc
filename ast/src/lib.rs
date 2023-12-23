@@ -87,10 +87,10 @@ pub enum Literal {
 impl Literal {
     pub fn type_str(&self) -> &'static str {
         match self {
-            Literal::Bool(_) => "bool",
-            Literal::Int(_) => "int",
-            Literal::Float(_) => "float",
-            Literal::List(_) => "array",
+            Literal::Bool(_) => "\"i1\"",
+            Literal::Int(_) => "\"i32\"",
+            Literal::Float(_) => "\"f32\"",
+            Literal::List(_) => "\"arr\"",
         }
     }
 }
@@ -147,10 +147,10 @@ impl Type {
         match self {
             Type::Prim(ty) => ty.1.as_str(),
             Type::Array(ty, _) => match ty.1 {
-                PrimType::Void => "array of void",
-                PrimType::Bool => "array of bool",
-                PrimType::Int => "array of int",
-                PrimType::Float => "array of float",
+                PrimType::Void => "arr of void",
+                PrimType::Bool => "arr of i1",
+                PrimType::Int => "arr of i32",
+                PrimType::Float => "arr of f32",
             },
         }
     }

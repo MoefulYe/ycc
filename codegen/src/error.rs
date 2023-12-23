@@ -118,13 +118,6 @@ pub enum CodeGenError {
         #[label("illegal array initializer used")]
         loc: Loc,
     },
-    // #[error("illegal index access for type `{ty}`")]
-    // #[diagnostic(code(CodeGenError::IllegalIndexAccess))]
-    // IllegalIndexAccess {
-    //     #[label("illegal index access for type `{ty}`")]
-    //     loc: Loc,
-    //     ty: String,
-    // },
     #[error("unknown error")]
     #[diagnostic(code(CodeGenError::Unknown))]
     Unknown {

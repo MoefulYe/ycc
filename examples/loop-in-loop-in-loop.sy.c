@@ -1,5 +1,5 @@
 void puti(int i);
-void putspace();
+void putsp();
 void putcr();
 
 int main() {
@@ -10,9 +10,9 @@ int main() {
       int k = 0;
       while (k < 3) {
         puti(i);
-        putspace();
+        putsp();
         puti(j);
-        putspace();
+        putsp();
         puti(j);
         putcr();
         k = k + 1;

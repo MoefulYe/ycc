@@ -54,10 +54,10 @@ impl GetElemType for Sourced<ast::Type> {
     }
 }
 
-pub fn ndim_arr_of<'ctx>(type_: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
+pub fn ndim_arr_of<'ctx>(ty: impl BasicType<'ctx>, dims: &[i32]) -> ArrayType<'ctx> {
     let mut it = dims.iter().rev();
     let &size = it.next().unwrap();
-    let init = type_.array_type(size as u32);
+    let init = ty.array_type(size as u32);
     it.fold(init, |acc, &size| acc.array_type(size as u32))
 }
 

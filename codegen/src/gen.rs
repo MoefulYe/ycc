@@ -62,14 +62,18 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<ConstDecl<'ast>> {
             inkwell::values::BasicValueEnum::ArrayValue(val) => {
                 let elem_ty = ty.elem_type(compiler.ctx)?;
                 let pointee_ty = val.get_type().as_basic_type_enum();
-                let arr = compiler.module.add_global(
-                    pointee_ty,
-                    Some(AddressSpace::default()),
-                    &compiler
-                        .current_fn
-                        .map(|_| prefix(ident))
-                        .unwrap_or(ident.to_string()),
-                );
+                let arr = match compiler.current_fn {
+                    Some(func) => compiler.module.add_global(
+                        pointee_ty,
+                        Some(AddressSpace::default()),
+                        &prefix(func, ident),
+                    ),
+                    None => {
+                        compiler
+                            .module
+                            .add_global(pointee_ty, Some(AddressSpace::default()), ident)
+                    }
+                };
                 let ptr = arr.as_pointer_value();
                 arr.set_constant(true);
                 arr.set_initializer(&val);
@@ -242,6 +246,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
         }
 
         body.codegen(&mut compiler.guard())?;
+        if compiler.no_terminator() && func.get_type().get_return_type().is_none() {
+            compiler.builder.build_return(None);
+        }
         compiler.current_fn = None;
         if !func.verify(true) {
             Err(CodeGenError::VerifyFunction {
@@ -348,7 +355,7 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<VarDecl<'ast>> {
                     let src = compiler.module.add_global(
                         pointee_ty,
                         Some(AddressSpace::default()),
-                        &prefix(ident.1),
+                        &prefix(unsafe { compiler.current_fn.unwrap_unchecked() }, ident.1),
                     );
                     let init = if let Expr::Prim((_, PrimExpr::Literal(lit))) = init {
                         lit.llvm_value(ty, compiler.ctx)?
@@ -458,8 +465,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
                         })
                     }
                 };
-                let idxs = idxs.iter().try_fold(vec![], |mut acc, expr| {
-                    match expr.codegen(compiler)? {
+                let idxs = idxs.iter().try_fold(
+                    vec![compiler.ctx.i32_type().const_zero()],
+                    |mut acc, expr| match expr.codegen(compiler)? {
                         BasicValueEnum::IntValue(val) => {
                             acc.push(val);
                             Ok(acc)
@@ -468,13 +476,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<AssignStmt<'ast>> {
                             loc: expr.0,
                             ty: val.get_type().to_string(),
                         }),
-                    }
-                })?;
-                let elem = unsafe {
-                    compiler
-                        .builder
-                        .build_in_bounds_gep(pointee_ty, ptr, &idxs, "array_access")
-                };
+                    },
+                )?;
+                let elem = unsafe { compiler.builder.build_gep(pointee_ty, ptr, &idxs, "gep") };
                 let rhs = rhs.codegen(compiler)?;
                 compiler.builder.build_store(elem, rhs);
                 Ok(())
@@ -760,8 +764,9 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                         elem_ty,
                         pointee_ty,
                     } => {
-                        let idxs = idxs.iter().try_fold(vec![], |mut acc, expr| {
-                            match expr.codegen(compiler)? {
+                        let idxs = idxs.iter().try_fold(
+                            vec![compiler.ctx.i32_type().const_zero()],
+                            |mut acc, expr| match expr.codegen(compiler)? {
                                 BasicValueEnum::IntValue(val) => {
                                     acc.push(val);
                                     Ok(acc)
@@ -770,13 +775,10 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<LValue<'ast>> {
                                     loc: expr.0,
                                     ty: val.get_type().to_string(),
                                 }),
-                            }
-                        })?;
-                        let elem = unsafe {
-                            compiler
-                                .builder
-                                .build_in_bounds_gep(pointee_ty, ptr, &idxs, "gep")
-                        };
+                            },
+                        )?;
+                        let elem =
+                            unsafe { compiler.builder.build_gep(pointee_ty, ptr, &idxs, "gep") };
                         Ok(compiler.builder.build_load(elem_ty, elem, "load"))
                     }
                 }
