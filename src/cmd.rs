@@ -71,7 +71,7 @@ impl Cmd {
 
         match self.type_ {
             FileType::Svg => {
-                let svg = visual_ast::visualize(&ast).into_diagnostic()?;
+                let svg = visualize::visualize(&ast).into_diagnostic()?;
                 output.write_all(svg.as_bytes()).into_diagnostic()?;
                 Ok(())
             }

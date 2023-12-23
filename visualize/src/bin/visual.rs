@@ -7,7 +7,7 @@ use std::{
     io::{Read, Write},
     path::PathBuf,
 };
-use visual_ast::visualize;
+use visualize::visualize;
 
 #[derive(Parser, Debug)]
 #[command(

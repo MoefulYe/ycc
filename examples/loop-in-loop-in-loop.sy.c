@@ -1,6 +1,6 @@
 void puti(int i);
-void putsp();
-void putcr();
+void sp();
+void cr();
 
 int main() {
   int i = 0;
@@ -10,11 +10,11 @@ int main() {
       int k = 0;
       while (k < 3) {
         puti(i);
-        putsp();
+        sp();
         puti(j);
-        putsp();
+        sp();
         puti(j);
-        putcr();
+        cr();
         k = k + 1;
       }
       j = j + 1;

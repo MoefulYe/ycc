@@ -1,25 +1,29 @@
-void puti(int i);
+void puti(int x);
 void sp();
 void cr();
 
-int main() {
-  int a[2][2] = {{1, 2}, {3, 4}};
-  int i;
-  i = 0;
+int arr[2][2] = {{1, 2}, {3, 4}};
+
+void inc(int arr[][2]) {
+  int i = 0;
   while (i < 2) {
     int j = 0;
     while (j < 2) {
-      int elem = a[i][j];
-      a[i][j] = elem + 1;
+      int val = arr[i][j];
+      arr[i][j] = val + 1;
       j = j + 1;
     }
     i = i + 1;
   }
-  i = 0;
+}
+
+int main() {
+  inc(arr);
+  int i = 0;
   while (i < 2) {
     int j = 0;
     while (j < 2) {
-      puti(a[i][j]);
+      puti(arr[i][j]);
       sp();
       j = j + 1;
     }

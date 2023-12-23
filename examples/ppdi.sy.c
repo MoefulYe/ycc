@@ -1,5 +1,5 @@
 void puti(int i);
-void putcr();
+void cr();
 
 int main() {
   int n = 100;
@@ -9,7 +9,7 @@ int main() {
     int ind = n % 10;
     if (n == hun * hun * hun + ten * ten * ten + ind * ind * ind) {
       puti(n);
-      putcr();
+      cr();
     }
     n = n + 1;
   }

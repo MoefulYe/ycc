@@ -230,7 +230,10 @@ impl<'ast, 'ctx> CodeGen<'ast, 'ctx> for Sourced<FuncDef<'ast>> {
             let pointee_ty = param.ty.llvm_type(compiler.ctx)?;
             let symbol = if pointee_ty.is_array_type() {
                 ArrMut {
-                    ptr,
+                    ptr: match val {
+                        BasicValueEnum::PointerValue(p) => p,
+                        _ => unreachable!(),
+                    },
                     elem_ty: param.ty.elem_type(compiler.ctx)?,
                     pointee_ty,
                 }
