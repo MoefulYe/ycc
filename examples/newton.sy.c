@@ -1,4 +1,6 @@
 void putf(float f);
+float getf();
+void cr();
 
 const float EPSILON = 1.0e-10;
 
@@ -19,11 +21,14 @@ float reslove(float a, float b, float c, float x) {
 }
 
 int main() {
-  float a = 1.0;
-  float b = -4.0;
-  float c = 4.0;
-  float x = 0.0;
-  float resloved = reslove(a, b, c, x);
-  putf(resloved);
+  while (true) {
+    float a = getf();
+    float b = getf();
+    float c = getf();
+    float x = getf();
+    float resloved = reslove(a, b, c, x);
+    putf(resloved);
+    cr();
+  }
   return 0;
 }
