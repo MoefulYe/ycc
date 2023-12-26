@@ -1,3 +1,7 @@
+int geti();
+void puti(int x);
+void cr();
+
 int is_even(int val) {
   if (val == 0) {
     return 0;
@@ -22,4 +26,13 @@ int is_even(int val) {
   } else {
     return 2;
   }
+}
+
+int main() {
+  while (true) {
+    int x = geti();
+    puti(is_even(x));
+    cr();
+  }
+  return 0;
 }
