@@ -138,18 +138,14 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         output.write_all(content.as_bytes()).into_diagnostic()
     }
     pub fn export_asm(&self, output: &mut dyn Write) -> miette::Result<()> {
-        Target::initialize_x86(&InitializationConfig::default());
-        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        Target::initialize_riscv(&InitializationConfig::default());
+        let triple = TargetTriple::create("riscv64-unknown-linux-gnu");
         let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
         let machine = target
             .create_target_machine(
                 &triple,
-                TargetMachine::get_host_cpu_name()
-                    .to_str()
-                    .unwrap_or_default(),
-                TargetMachine::get_host_cpu_features()
-                    .to_str()
-                    .unwrap_or_default(),
+                "",
+                "",
                 OptimizationLevel::Aggressive,
                 RelocMode::Default,
                 CodeModel::Default,
@@ -161,18 +157,14 @@ impl<'ast, 'ctx> Compiler<'ast, 'ctx> {
         output.write_all(content.as_slice()).into_diagnostic()
     }
     pub fn export_obj(&self, output: &mut dyn Write) -> miette::Result<()> {
-        Target::initialize_x86(&InitializationConfig::default());
-        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        Target::initialize_riscv(&InitializationConfig::default());
+        let triple = TargetTriple::create("riscv64-unknown-linux-gnu");
         let target = Target::from_triple(&triple).map_err(|err| miette!("{err}"))?;
         let machine = target
             .create_target_machine(
                 &triple,
-                TargetMachine::get_host_cpu_name()
-                    .to_str()
-                    .unwrap_or_default(),
-                TargetMachine::get_host_cpu_features()
-                    .to_str()
-                    .unwrap_or_default(),
+                "",
+                "",
                 OptimizationLevel::Aggressive,
                 RelocMode::Default,
                 CodeModel::Default,
